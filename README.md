@@ -241,6 +241,63 @@ The simulation outputs:
   - MP4 animation (if ffmpeg available)
 - **Time series data**: Available in `simulation.history` for custom analysis
 
+## ODE Comparison and Validation
+
+The repository includes tools for comparing Monte Carlo simulation results against analytical ODE solutions, which helps validate simulation accuracy and identify discrepancies.
+
+### ODE Solver
+
+The `src/ode_solver.py` module provides:
+
+1. **`solve_binding_odes()`**: Solves the system of ODEs for independent A/B binding to antigens
+   - Implements the full kinetic model with proper unit handling
+   - Returns time evolution of Free, Bound_A, Bound_B, and Sandwich states
+   - Conserves total antigen count to machine precision
+
+2. **`calculate_equilibrium_fractions()`**: Calculates analytical equilibrium predictions
+   - Uses statistical mechanics partition function approach
+   - Returns both fractions and absolute counts
+   - Useful for validating long-time MC behavior
+
+### Running Comparisons
+
+**Run the comparison script:**
+```bash
+python scripts/compare_mc_to_ode.py
+```
+
+This will:
+- Solve the ODEs for the specified parameters
+- Run multiple Monte Carlo replicates
+- Generate comparison plots showing MC vs ODE trajectories
+- Save output to `output/mc_vs_ode_comparison.png`
+
+**Run the comparison tests:**
+```bash
+# Run quick ODE validation tests
+pytest tests/test_ode_comparison.py -v -m "not slow"
+
+# Run all tests including MC vs ODE comparison (slower)
+pytest tests/test_ode_comparison.py -v
+```
+
+### Understanding the Comparison
+
+The ODE model assumes:
+- **Independent binding**: A and B antibodies bind independently
+- **Field OFF conditions**: No spatial constraints or enhanced concentrations
+- **Well-mixed system**: Uniform concentrations throughout
+
+Key differences from MC simulation:
+- **MC includes stochastic fluctuations**: Multiple replicates needed for statistics
+- **MC can model field ON phases**: With spatial constraints and enhanced binding
+- **MC tracks discrete particles**: While ODE uses continuous concentrations
+
+The comparison helps identify:
+- Whether MC properly implements the kinetic rate equations
+- How well MC statistics converge to ODE predictions
+- Any systematic biases in the KMC algorithm
+
 ## Development Status
 
 Current features:
@@ -250,7 +307,8 @@ Current features:
 - ✅ Field-directed assembly restrictions
 - ✅ Cluster detection and classification
 - ✅ 3D visualization system
-- ✅ Comprehensive test suite (92+ tests)
+- ✅ ODE solver and MC vs ODE comparison tools
+- ✅ Comprehensive test suite (95+ tests)
 
 ## License
 
