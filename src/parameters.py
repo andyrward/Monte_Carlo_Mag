@@ -2,7 +2,7 @@
 SimulationParameters class for storing and calculating simulation parameters.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -54,10 +54,10 @@ class SimulationParameters:
     n_repeats: int
     
     # Derived quantities (set in __post_init__)
-    V_box: float = None
-    N_antigen_sim: int = None
-    C_antibody_A: float = None
-    C_antibody_B: float = None
+    V_box: float = field(init=False)
+    N_antigen_sim: int = field(init=False)
+    C_antibody_A: float = field(init=False)
+    C_antibody_B: float = field(init=False)
     
     def __post_init__(self):
         """Calculate derived quantities."""

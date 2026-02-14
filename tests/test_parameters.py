@@ -59,7 +59,7 @@ def test_v_box_calculation():
     expected_v_box = 50 / (10.0 * 1e-9 * N_A)
     
     assert params.V_box is not None
-    assert abs(params.V_box - expected_v_box) < 1e-15
+    assert params.V_box == pytest.approx(expected_v_box)
 
 
 def test_n_antigen_calculation():
@@ -116,7 +116,7 @@ def test_c_antibody_a_calculation():
     expected_c_antibody_a = (50 * 1000) / (N_A * params.V_box)
     
     assert params.C_antibody_A is not None
-    assert abs(params.C_antibody_A - expected_c_antibody_a) < 1e-15
+    assert params.C_antibody_A == pytest.approx(expected_c_antibody_a)
 
 
 def test_c_antibody_b_calculation():
@@ -145,7 +145,7 @@ def test_c_antibody_b_calculation():
     expected_c_antibody_b = (50 * 1000) / (N_A * params.V_box)
     
     assert params.C_antibody_B is not None
-    assert abs(params.C_antibody_B - expected_c_antibody_b) < 1e-15
+    assert params.C_antibody_B == pytest.approx(expected_c_antibody_b)
 
 
 def test_different_particle_counts():
@@ -175,5 +175,5 @@ def test_different_particle_counts():
     expected_c_antibody_a = (100 * 500) / (N_A * params.V_box)
     expected_c_antibody_b = (25 * 500) / (N_A * params.V_box)
     
-    assert abs(params.C_antibody_A - expected_c_antibody_a) < 1e-15
-    assert abs(params.C_antibody_B - expected_c_antibody_b) < 1e-15
+    assert params.C_antibody_A == pytest.approx(expected_c_antibody_a)
+    assert params.C_antibody_B == pytest.approx(expected_c_antibody_b)
