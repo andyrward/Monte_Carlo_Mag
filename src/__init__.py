@@ -27,3 +27,19 @@ __all__ = [
     'find_clusters',
     'classify_cluster',
 ]
+
+# Import visualization if dependencies are available
+try:
+    from .visualization import (
+        visualize_system_3d,
+        create_cycle_snapshots,
+        create_animation,
+    )
+    _HAS_VISUALIZATION = True
+    __all__.extend([
+        'visualize_system_3d',
+        'create_cycle_snapshots',
+        'create_animation',
+    ])
+except ImportError:
+    _HAS_VISUALIZATION = False

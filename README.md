@@ -1,10 +1,17 @@
 # Monte Carlo Magnetic Nanoparticle Simulation
 
-A kinetic Monte Carlo simulation of magnetic nanoparticles with antibody-antigen binding.
+A kinetic Monte Carlo simulation of magnetic nanoparticles with antibody-antigen binding, featuring field-directed assembly restrictions and 3D visualization.
 
 ## Overview
 
-This simulation models magnetic nanoparticles (types A and B) coated with antibodies that can bind antigens to form "sandwich" complexes. The simulation uses concentration-based kinetics with fixed time stepping and includes magnetic field ON/OFF phases.
+This simulation models magnetic nanoparticles (types A and B) coated with antibodies that can bind antigens to form "sandwich" complexes. The simulation uses concentration-based kinetics with fixed time stepping and includes magnetic field ON/OFF phases with physically realistic assembly restrictions.
+
+### Key Features
+
+- **Field-Directed Assembly**: Realistic constraints on particle binding during magnetic field phases
+- **3D Visualization**: Interactive visualization of simulation results with cluster classification
+- **Cluster Analysis**: Automatic detection and classification of chains vs. aggregates
+- **Comprehensive Testing**: 92+ unit tests ensuring code quality
 
 ## Installation
 
@@ -21,26 +28,66 @@ git clone https://github.com/andyrward/Monte_Carlo_Mag.git
 cd Monte_Carlo_Mag
 ```
 
-2. Install the package:
+2. Install the package (basic):
 ```bash
 pip install -e .
 ```
 
-3. For development, install with dev dependencies:
+3. Install with visualization support:
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[visualization]"
+```
+
+4. For development, install with dev dependencies:
+```bash
+pip install -e ".[dev,visualization]"
 ```
 
 ## Usage
 
-### Running the Simulation
+### Basic Simulation
 
 Run the simulation with default parameters:
 ```bash
 python main.py
 ```
 
-### Configuration
+### Visualization Options
+
+Generate initial and final state visualizations:
+```bash
+python main.py --visualize
+```
+
+Create snapshots at each cycle boundary:
+```bash
+python main.py --snapshots
+```
+
+Create an MP4 animation (requires ffmpeg):
+```bash
+python main.py --snapshots --animation
+```
+
+Specify custom output directory:
+```bash
+python main.py --visualize --output-dir my_results
+```
+
+Use custom configuration file:
+```bash
+python main.py --config my_config.yaml --visualize
+```
+
+### Command-Line Options
+
+- `--config CONFIG`: Path to configuration YAML file (default: `config/default_params.yaml`)
+- `--visualize`: Generate 3D visualization of initial and final states
+- `--snapshots`: Create snapshots at each cycle boundary
+- `--output-dir OUTPUT_DIR`: Directory for visualization outputs (default: `output`)
+- `--animation`: Create MP4 animation from snapshots (requires ffmpeg)
+
+## Configuration
 
 Edit `config/default_params.yaml` to customize simulation parameters:
 
@@ -74,7 +121,29 @@ dt: 0.001              # Time step (seconds)
 n_steps_on: 1000       # Steps with field ON
 n_steps_off: 1000      # Steps with field OFF
 n_repeats: 5           # Number of ON/OFF cycles
+
+# Magnetic field behavior
+restrict_aggregates_field_on: true  # If true, aggregates cannot form new links when field is ON
 ```
+
+### Field-Directed Assembly Restrictions
+
+The `restrict_aggregates_field_on` parameter controls physically realistic binding behavior:
+
+**When field is ON and restriction is enabled:**
+- **Single particles**: Can ONLY bind via North/South patches (indices 0, 1)
+- **Chain particles**: Can ONLY bind via North/South patches to extend the chain
+- **Aggregate particles**: Can bind antigens on ANY patch, but CANNOT create new inter-particle links (topology frozen)
+
+**When field is OFF:**
+- All particles can bind via any patch
+- All sandwich complexes create links normally
+- Chains can crosslink into aggregates
+
+This feature enables realistic modeling of field-directed assembly where:
+- Single particles and chains align with the magnetic field and can only extend longitudinally
+- Aggregates are kinetically frozen and cannot reorganize during field ON phases
+- System can relax and form aggregates during field OFF phases
 
 ## Architecture
 
@@ -96,12 +165,14 @@ Dataclass for simulation parameters with automatic calculation of derived quanti
 - Simulation box volume
 - Number of antigens
 - Effective antibody concentrations
+- Field restriction settings
 
 #### Simulation (`src/simulation.py`)
 Main KMC simulation engine:
 - Time stepping with field ON/OFF phases
-- Stochastic binding/unbinding events
+- Stochastic binding/unbinding events with field restrictions
 - Observable tracking (antigen states, clusters)
+- Helper methods for cluster type detection and patch filtering
 
 ### Event Calculations (`src/events.py`)
 Probability calculations for:
@@ -113,8 +184,35 @@ Probability calculations for:
 ### Cluster Analysis (`src/clusters.py`)
 - BFS-based cluster detection
 - Chain vs. Aggregate classification
-  - Chain: All links through North-South patches
-  - Aggregate: Contains regular patch links
+  - **Chain**: All links through North-South patches
+  - **Aggregate**: Contains regular patch links
+
+### Visualization (`src/visualization.py`)
+3D visualization tools with:
+- **Color coding**:
+  - Single particles: Brown spheres with red dots for North/South patches
+  - Chains: Green spheres
+  - Aggregates: Red spheres
+- **Features**:
+  - Non-overlapping random particle placement
+  - Black lines showing inter-particle links
+  - Statistics overlay (time, step, field state, particle counts, antigen counts)
+  - Snapshot generation at cycle boundaries
+  - Animation support (requires ffmpeg)
+
+## Visualization Examples
+
+The visualization system generates 3D plots showing:
+
+1. **Particle Classification**: Automatically detects and color-codes particles based on their cluster type
+2. **North/South Markers**: Red dots on single particles indicate magnetic poles
+3. **Connectivity**: Black lines show sandwich complex links between particles
+4. **Statistics**: Overlay shows current simulation state and counts
+
+Snapshots are created at key points:
+- Initial state (step 0)
+- End of each field ON phase
+- End of each field OFF phase (end of cycle)
 
 ## Running Tests
 
@@ -128,21 +226,31 @@ Run with coverage:
 pytest tests/ --cov=src --cov-report=html
 ```
 
+Run specific test modules:
+```bash
+pytest tests/test_simulation.py -v
+pytest tests/test_visualization.py -v
+```
+
 ## Output
 
 The simulation outputs:
-- Antigen state statistics (Free, Bound_A, Bound_B, Sandwich)
-- Cluster statistics (total, chains, aggregates)
-- Time series data in `simulation.history`
+- **Console statistics**: Antigen states, cluster counts, largest cluster size
+- **Visualization files** (if enabled):
+  - PNG images for snapshots
+  - MP4 animation (if ffmpeg available)
+- **Time series data**: Available in `simulation.history` for custom analysis
 
 ## Development Status
 
-This is Phase 1 of the implementation. Current features:
+Current features:
 - ✅ Core particle and antigen classes
 - ✅ Kinetic Monte Carlo simulation engine
 - ✅ Field ON/OFF phases
+- ✅ Field-directed assembly restrictions
 - ✅ Cluster detection and classification
-- ✅ Comprehensive test suite (63 tests)
+- ✅ 3D visualization system
+- ✅ Comprehensive test suite (92+ tests)
 
 ## License
 
