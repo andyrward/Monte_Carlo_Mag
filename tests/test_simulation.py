@@ -472,19 +472,36 @@ def test_field_restrictions_integration():
     )
     sim = Simulation(params)
     
+    # Create an aggregate before starting the simulation
+    particle_a = sim.particles_a[0]
+    particle_b = sim.particles_b[0]
+    # Link via regular patch to create an aggregate
+    particle_a.add_link(2, particle_b.particle_id, 3)
+    particle_b.add_link(3, particle_a.particle_id, 2)
+    
+    # Verify it's classified as aggregate
+    assert sim._get_particle_cluster_type(particle_a.particle_id) == 'Aggregate'
+    assert sim._get_particle_cluster_type(particle_b.particle_id) == 'Aggregate'
+    
     # Start with field ON
     sim.field_on = True
     sim.current_step = 0
     
-    # Run a few steps and verify that single particles can bind
+    # Count links before running
+    initial_link_count = len(particle_a.links) + len(particle_b.links)
+    
+    # Run a few steps with field ON
     for _ in range(10):
+        assert sim.is_field_on()
         sim.step()
     
-    # Check that we have some antigen binding activity
-    n_bound = sum(1 for a in sim.antigens if a.state != AntigenState.FREE)
+    # Aggregate particles should not have gained new links during field ON
+    final_link_count = len(particle_a.links) + len(particle_b.links)
+    assert final_link_count == initial_link_count, "Aggregates should not form new links when field is ON"
     
-    # We should have some binding after 10 steps (probabilistic test)
-    # This might fail occasionally due to randomness, but should pass most of the time
-    assert n_bound >= 0  # At least verify the simulation runs without errors
+    # Verify that single particles can still bind antigens (but may not form links if they become aggregates)
+    # At minimum, the simulation should run without errors
+    n_bound = sum(1 for a in sim.antigens if a.state != AntigenState.FREE)
+    assert n_bound >= 0  # Simulation ran without errors
 
 

@@ -52,10 +52,11 @@ def create_test_params(**kwargs):
 @pytest.mark.skipif(not _HAS_VISUALIZATION, reason="Requires visualization dependencies")
 def test_generate_non_overlapping_positions():
     """Test that positions are generated without overlap."""
+    particle_radius = 0.3
     positions = generate_non_overlapping_positions(
         n_particles=10,
         box_size=10.0,
-        particle_radius=0.3,
+        particle_radius=particle_radius,
     )
     
     import numpy as np
@@ -71,7 +72,7 @@ def test_generate_non_overlapping_positions():
     for i in range(len(positions)):
         for j in range(i + 1, len(positions)):
             dist = np.linalg.norm(positions[i] - positions[j])
-            assert dist >= 2 * 0.3
+            assert dist >= 2 * particle_radius
 
 
 @pytest.mark.skipif(not _HAS_VISUALIZATION, reason="Requires visualization dependencies")
