@@ -117,8 +117,13 @@ def main():
     print(f"State       MC_avg  ODE     Equilibrium  MC/ODE")
     print("-" * 55)
     
+    # Find indices near t=200 once
+    mc_time_array = np.array(mc_time)
+    indices_at_200 = np.abs(mc_time_array - 200) < 0.5
+    
     for state, ode, mc in zip(states, ode_data, mc_data):
-        mc_avg = np.mean([mc[i] for i in range(len(mc_time)) if abs(mc_time[i] - 200) < 0.5])
+        mc_array = np.array(mc)
+        mc_avg = np.mean(mc_array[indices_at_200])
         ode_final = ode[-1]
         eq_val = eq['counts'][state]
         ratio = mc_avg / ode_final if ode_final > 0 else float('inf')
