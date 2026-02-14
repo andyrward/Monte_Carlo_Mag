@@ -31,3 +31,7 @@ Desktop.ini
 dist/
 build/
 *.egg-info/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+notebooks/.ipynb_checkpoints/
