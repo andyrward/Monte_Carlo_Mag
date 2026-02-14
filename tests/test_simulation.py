@@ -195,3 +195,65 @@ def test_simulation_with_no_antigens():
     assert all(count == 0 for count in sim.history['n_bound_a'])
     assert all(count == 0 for count in sim.history['n_bound_b'])
     assert all(count == 0 for count in sim.history['n_sandwich'])
+
+
+def test_sandwich_link_formation():
+    """Test that sandwich formation creates reciprocal links."""
+    from src.antigen import AntigenState
+    
+    params = create_test_params()
+    sim = Simulation(params)
+    
+    # Manually create a sandwich to test link formation
+    antigen = sim.antigens[0]
+    particle_a = sim.particles_a[0]
+    particle_b = sim.particles_b[0]
+    
+    # Bind antigen to both particles (using valid patch IDs: 0-4 for n_patches=5)
+    particle_a.bind_antigen(patch_id=2, antigen_id=antigen.antigen_id)
+    antigen.bind_to_a(particle_a.particle_id, patch_id=2)
+    
+    particle_b.bind_antigen(patch_id=3, antigen_id=antigen.antigen_id)
+    antigen.bind_to_b(particle_b.particle_id, patch_id=3)
+    
+    # Verify sandwich state
+    assert antigen.state == AntigenState.SANDWICH
+    
+    # Create links
+    particle_a.add_link(2, particle_b.particle_id, 3)
+    particle_b.add_link(3, particle_a.particle_id, 2)
+    
+    # Verify reciprocal links exist
+    assert 2 in particle_a.links
+    assert particle_a.links[2] == (particle_b.particle_id, 3)
+    
+    assert 3 in particle_b.links
+    assert particle_b.links[3] == (particle_a.particle_id, 2)
+    
+    # Test link removal when sandwich breaks
+    particle_a.remove_link(2)
+    particle_b.remove_link(3)
+    
+    assert 2 not in particle_a.links
+    assert 3 not in particle_b.links
+
+
+def test_get_all_particles_method():
+    """Test that get_all_particles() returns the correct dictionary."""
+    params = create_test_params()
+    sim = Simulation(params)
+    
+    all_particles = sim.get_all_particles()
+    
+    # Should have all particles
+    assert len(all_particles) == params.N_A_sim + params.N_B_sim
+    
+    # Should contain both A and B particles
+    for particle in sim.particles_a:
+        assert particle.particle_id in all_particles
+        assert all_particles[particle.particle_id] == particle
+    
+    for particle in sim.particles_b:
+        assert particle.particle_id in all_particles
+        assert all_particles[particle.particle_id] == particle
+

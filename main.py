@@ -2,6 +2,7 @@
 Driver script for kinetic Monte Carlo simulation.
 """
 
+import sys
 import yaml
 from pathlib import Path
 
@@ -17,7 +18,17 @@ def load_parameters(config_file: str) -> SimulationParameters:
         
     Returns:
         SimulationParameters object
+        
+    Raises:
+        FileNotFoundError: If config file doesn't exist
     """
+    config_path = Path(config_file)
+    if not config_path.exists():
+        raise FileNotFoundError(
+            f"Configuration file not found: {config_file}\n"
+            f"Please ensure the config file exists or specify an alternative path."
+        )
+    
     with open(config_file, 'r') as f:
         config = yaml.safe_load(f)
     
@@ -33,7 +44,15 @@ def main():
     # Load parameters
     config_path = Path(__file__).parent / "config" / "default_params.yaml"
     print(f"\nLoading parameters from: {config_path}")
-    params = load_parameters(str(config_path))
+    
+    try:
+        params = load_parameters(str(config_path))
+    except FileNotFoundError as e:
+        print(f"\nError: {e}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"\nError loading parameters: {e}", file=sys.stderr)
+        sys.exit(1)
     
     # Print simulation setup
     print("\n" + "-" * 60)
@@ -77,8 +96,9 @@ def main():
     print(f"  Bound to B: {n_bound_b}")
     print(f"  Sandwich: {n_sandwich}")
     
-    # Find and classify clusters
-    clusters = find_clusters(sim._all_particles)
+    # Find and classify clusters using public method
+    all_particles = sim.get_all_particles()
+    clusters = find_clusters(all_particles)
     
     # Count chains and aggregates
     n_chains = 0
@@ -86,7 +106,7 @@ def main():
     
     for cluster in clusters:
         if len(cluster) > 1:  # Only count multi-particle clusters
-            cluster_type = classify_cluster(cluster, sim._all_particles)
+            cluster_type = classify_cluster(cluster, all_particles)
             if cluster_type == 'Chain':
                 n_chains += 1
             else:

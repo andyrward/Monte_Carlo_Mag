@@ -177,3 +177,96 @@ def test_different_particle_counts():
     
     assert params.C_antibody_A == pytest.approx(expected_c_antibody_a)
     assert params.C_antibody_B == pytest.approx(expected_c_antibody_b)
+
+
+def test_negative_concentrations_raise_error():
+    """SimulationParameters should reject negative concentration values."""
+    with pytest.raises(ValueError, match="Concentrations must be non-negative"):
+        SimulationParameters(
+            C_A=-1.0,
+            C_B=10.0,
+            C_antigen=1.0,
+            C_enhancement=1.0e-6,
+            N_A_sim=50,
+            N_B_sim=50,
+            antibodies_per_particle=1000,
+            n_patches=12,
+            kon_a=1.0e5,
+            koff_a=0.1,
+            kon_b=1.0e5,
+            koff_b=0.1,
+            dt=0.001,
+            n_steps_on=1000,
+            n_steps_off=1000,
+            n_repeats=5,
+        )
+
+
+def test_invalid_particle_counts_raise_error():
+    """SimulationParameters should reject zero or negative particle counts."""
+    with pytest.raises(ValueError, match="Particle counts must be positive"):
+        SimulationParameters(
+            C_A=10.0,
+            C_B=10.0,
+            C_antigen=1.0,
+            C_enhancement=1.0e-6,
+            N_A_sim=0,
+            N_B_sim=50,
+            antibodies_per_particle=1000,
+            n_patches=12,
+            kon_a=1.0e5,
+            koff_a=0.1,
+            kon_b=1.0e5,
+            koff_b=0.1,
+            dt=0.001,
+            n_steps_on=1000,
+            n_steps_off=1000,
+            n_repeats=5,
+        )
+
+
+def test_invalid_n_patches_raises_error():
+    """SimulationParameters should reject n_patches outside valid range."""
+    with pytest.raises(ValueError, match="n_patches must be between 2 and 30"):
+        SimulationParameters(
+            C_A=10.0,
+            C_B=10.0,
+            C_antigen=1.0,
+            C_enhancement=1.0e-6,
+            N_A_sim=50,
+            N_B_sim=50,
+            antibodies_per_particle=1000,
+            n_patches=31,
+            kon_a=1.0e5,
+            koff_a=0.1,
+            kon_b=1.0e5,
+            koff_b=0.1,
+            dt=0.001,
+            n_steps_on=1000,
+            n_steps_off=1000,
+            n_repeats=5,
+        )
+
+
+def test_negative_dt_raises_error():
+    """SimulationParameters should reject negative or zero time step."""
+    with pytest.raises(ValueError, match="Time step must be positive"):
+        SimulationParameters(
+            C_A=10.0,
+            C_B=10.0,
+            C_antigen=1.0,
+            C_enhancement=1.0e-6,
+            N_A_sim=50,
+            N_B_sim=50,
+            antibodies_per_particle=1000,
+            n_patches=12,
+            kon_a=1.0e5,
+            koff_a=0.1,
+            kon_b=1.0e5,
+            koff_b=0.1,
+            dt=-0.001,
+            n_steps_on=1000,
+            n_steps_off=1000,
+            n_repeats=5,
+        )
+

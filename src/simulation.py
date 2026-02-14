@@ -118,26 +118,49 @@ class Simulation:
         for _ in range(n_steps):
             self.step()
     
-    def _process_antigen_events(self) -> None:
-        """Loop over antigens and process binding/unbinding events."""
-        # Shuffle antigens for random order processing
-        antigens_shuffled = self.antigens.copy()
-        random.shuffle(antigens_shuffled)
+    def get_all_particles(self) -> dict[int, Particle]:
+        """
+        Get dictionary of all particles in the simulation.
         
-        for antigen in antigens_shuffled:
-            # Try unbinding events first
+        Returns:
+            Dictionary mapping particle_id to Particle objects
+        """
+        return self._all_particles
+    
+    def _process_antigen_events(self) -> None:
+        """
+        Loop over antigens and process binding/unbinding events.
+        
+        To maintain proper KMC kinetics, each antigen attempts at most one event
+        per timestep (either binding or unbinding), selected randomly from
+        available candidates.
+        """
+        # Process antigens in random order without copying the entire list
+        for idx in random.sample(range(len(self.antigens)), len(self.antigens)):
+            antigen = self.antigens[idx]
+            
+            # Collect all possible events for this antigen
+            candidates = []
+            
+            # Possible unbinding events
             if antigen.state == AntigenState.BOUND_A or antigen.state == AntigenState.SANDWICH:
-                self._attempt_unbinding(antigen, 'A')
-            
+                candidates.append(("unbind", "A"))
             if antigen.state == AntigenState.BOUND_B or antigen.state == AntigenState.SANDWICH:
-                self._attempt_unbinding(antigen, 'B')
+                candidates.append(("unbind", "B"))
             
-            # Try binding events
+            # Possible binding events
             if antigen.state == AntigenState.FREE or antigen.state == AntigenState.BOUND_B:
-                self._attempt_binding(antigen, 'A')
-            
+                candidates.append(("bind", "A"))
             if antigen.state == AntigenState.FREE or antigen.state == AntigenState.BOUND_A:
-                self._attempt_binding(antigen, 'B')
+                candidates.append(("bind", "B"))
+            
+            # Randomly select one event to attempt
+            if candidates:
+                action, bind_type = random.choice(candidates)
+                if action == "unbind":
+                    self._attempt_unbinding(antigen, bind_type)
+                else:
+                    self._attempt_binding(antigen, bind_type)
     
     def _calculate_binding_probability(self, antigen: Antigen, bind_type: str) -> float:
         """

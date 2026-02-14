@@ -106,3 +106,55 @@ def test_binding_probability_scales_with_concentration():
     prob2 = calc_bind_probability_field_off(kon, 2.0e-6, dt)
     
     assert prob2 == pytest.approx(2 * prob1)
+
+
+def test_calc_bind_probability_field_off_exceeds_one():
+    """Test binding probability calculation with parameters that yield probability > 1.0."""
+    kon = 1.0e8  # M^-1 s^-1, large on-rate
+    C_antibody = 1.0e-3  # M, high concentration
+    dt = 0.1  # s, relatively large time step
+    
+    # Naive product is 1.0e8 * 1.0e-3 * 0.1 = 1.0e4 >> 1.0
+    # Should be capped at 1.0 with a warning
+    with pytest.warns(RuntimeWarning, match="exceeds 1.0"):
+        prob = calc_bind_probability_field_off(kon, C_antibody, dt)
+    
+    assert prob == 1.0
+
+
+def test_calc_bind_probability_field_on_enhanced_exceeds_one():
+    """Test enhanced binding probability with parameters that yield probability > 1.0."""
+    kon = 1.0e8  # M^-1 s^-1, large on-rate
+    C_enhancement = 1.0e-3  # M, high enhancement concentration
+    P_neighbor = 1.0  # maximum neighbor probability
+    dt = 0.1  # s, relatively large time step
+    
+    # Naive product is 1.0e8 * 1.0e-3 * 1.0 * 0.1 = 1.0e4 >> 1.0
+    # Should be capped at 1.0 with a warning
+    with pytest.warns(RuntimeWarning, match="exceeds 1.0"):
+        prob = calc_bind_probability_field_on_enhanced(kon, C_enhancement, P_neighbor, dt)
+    
+    assert prob == 1.0
+
+
+def test_calc_unbind_probability_exceeds_one():
+    """Test that unbinding probability > 1.0 raises an error."""
+    koff = 100.0  # s^-1, very large off-rate
+    dt = 0.1  # s
+    
+    # koff * dt = 10.0 >> 1.0
+    with pytest.raises(ValueError, match="exceeds 1.0"):
+        calc_unbind_probability(koff, dt)
+
+
+def test_negative_parameters_raise_errors():
+    """Test that negative parameters raise appropriate errors."""
+    with pytest.raises(ValueError, match="Negative parameters"):
+        calc_bind_probability_field_off(-1.0, 1.0e-6, 0.001)
+    
+    with pytest.raises(ValueError, match="Negative parameters"):
+        calc_bind_probability_field_on_enhanced(1.0e5, -1.0e-6, 0.5, 0.001)
+    
+    with pytest.raises(ValueError, match="Negative parameters"):
+        calc_unbind_probability(-0.1, 0.001)
+

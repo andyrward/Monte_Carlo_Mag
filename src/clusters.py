@@ -2,6 +2,7 @@
 Cluster detection and classification for particle networks.
 """
 
+from collections import deque
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -30,10 +31,10 @@ def find_clusters(particles: dict[int, 'Particle']) -> list[set[int]]:
         
         # Start a new cluster with BFS
         cluster = set()
-        queue = [particle_id]
+        queue = deque([particle_id])
         
         while queue:
-            current_id = queue.pop(0)
+            current_id = queue.popleft()
             if current_id in visited:
                 continue
             
@@ -48,6 +49,8 @@ def find_clusters(particles: dict[int, 'Particle']) -> list[set[int]]:
         
         if cluster:
             clusters.append(cluster)
+    
+    return clusters
     
     return clusters
 

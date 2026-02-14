@@ -2,6 +2,8 @@
 Event probability calculations for kinetic Monte Carlo simulation.
 """
 
+import warnings
+
 
 def calc_bind_probability_field_off(kon: float, C_antibody: float, dt: float) -> float:
     """
@@ -13,9 +15,35 @@ def calc_bind_probability_field_off(kon: float, C_antibody: float, dt: float) ->
         dt: Time step (seconds)
         
     Returns:
-        Binding probability: kon × C_antibody × dt
+        Binding probability: kon × C_antibody × dt, capped at 1.0
+        
+    Raises:
+        ValueError: If inputs are negative
+        
+    Warnings:
+        Issues a warning if the first-order approximation breaks down (prob > 0.1)
     """
-    return kon * C_antibody * dt
+    if kon < 0 or C_antibody < 0 or dt < 0:
+        raise ValueError(f"Negative parameters not allowed: kon={kon}, C_antibody={C_antibody}, dt={dt}")
+    
+    prob = kon * C_antibody * dt
+    
+    if prob > 1.0:
+        warnings.warn(
+            f"Binding probability exceeds 1.0 (kon * C_antibody * dt = {prob:.3f}). "
+            f"Time step is too large for the given rate constants. Capping at 1.0.",
+            RuntimeWarning
+        )
+        return 1.0
+    
+    if prob > 0.1:
+        warnings.warn(
+            f"Binding probability {prob:.3f} > 0.1. First-order approximation may be inaccurate. "
+            f"Consider reducing the time step.",
+            RuntimeWarning
+        )
+    
+    return prob
 
 
 def calc_bind_probability_field_on_enhanced(
@@ -31,9 +59,41 @@ def calc_bind_probability_field_on_enhanced(
         dt: Time step (seconds)
         
     Returns:
-        Enhanced binding probability: kon × C_enhancement × P_neighbor × dt
+        Enhanced binding probability: kon × C_enhancement × P_neighbor × dt, capped at 1.0
+        
+    Raises:
+        ValueError: If inputs are negative
+        
+    Warnings:
+        Issues a warning if the first-order approximation breaks down (prob > 0.1)
     """
-    return kon * C_enhancement * P_neighbor * dt
+    if kon < 0 or C_enhancement < 0 or P_neighbor < 0 or dt < 0:
+        raise ValueError(
+            f"Negative parameters not allowed: kon={kon}, C_enhancement={C_enhancement}, "
+            f"P_neighbor={P_neighbor}, dt={dt}"
+        )
+    
+    if P_neighbor > 1.0:
+        raise ValueError(f"P_neighbor must be <= 1.0, got {P_neighbor}")
+    
+    prob = kon * C_enhancement * P_neighbor * dt
+    
+    if prob > 1.0:
+        warnings.warn(
+            f"Enhanced binding probability exceeds 1.0 (kon * C_enhancement * P_neighbor * dt = {prob:.3f}). "
+            f"Time step is too large for the given rate constants. Capping at 1.0.",
+            RuntimeWarning
+        )
+        return 1.0
+    
+    if prob > 0.1:
+        warnings.warn(
+            f"Enhanced binding probability {prob:.3f} > 0.1. First-order approximation may be inaccurate. "
+            f"Consider reducing the time step.",
+            RuntimeWarning
+        )
+    
+    return prob
 
 
 def calc_unbind_probability(koff: float, dt: float) -> float:
@@ -45,9 +105,23 @@ def calc_unbind_probability(koff: float, dt: float) -> float:
         dt: Time step (seconds)
         
     Returns:
-        Unbinding probability: koff × dt
+        Unbinding probability: koff × dt, capped at 1.0
+        
+    Raises:
+        ValueError: If inputs are negative or probability exceeds 1.0
     """
-    return koff * dt
+    if koff < 0 or dt < 0:
+        raise ValueError(f"Negative parameters not allowed: koff={koff}, dt={dt}")
+    
+    prob = koff * dt
+    
+    if prob > 1.0:
+        raise ValueError(
+            f"Unbinding probability exceeds 1.0 (koff * dt = {prob:.3f}). "
+            f"The time step is too large for the given dissociation rate constant."
+        )
+    
+    return prob
 
 
 def calc_neighbor_probability(N_type: int, N_total: int) -> float:
