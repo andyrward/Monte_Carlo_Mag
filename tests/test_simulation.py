@@ -541,10 +541,6 @@ def test_simultaneous_binding_to_a_and_b():
     # Verify total is conserved
     total = final_free + final_bound_a + final_bound_b + final_sandwich
     assert total == params.N_antigen_sim
-    
-    # With the fixed algorithm, some binding should occur
-    # The key is that the algorithm now attempts all reactions
-    assert total == params.N_antigen_sim  # Antigens are conserved
 
 
 def test_all_reactions_attempted_independently():
@@ -554,8 +550,11 @@ def test_all_reactions_attempted_independently():
     The fix changes the algorithm to attempt all applicable reactions
     (binding A, binding B, unbinding A, unbinding B) independently each
     timestep, rather than randomly selecting just one.
+    
+    This test exercises all code paths by setting up antigens in all four
+    possible states (FREE, BOUND_A, BOUND_B, SANDWICH) and verifying the
+    simulation handles them correctly.
     """
-    # Simple test: verify the method runs without errors
     params = create_test_params(
         N_A_sim=20,
         N_B_sim=20,
