@@ -53,6 +53,7 @@ class SimulationParameters:
     n_steps_on: int
     n_steps_off: int
     n_repeats: int
+    restrict_aggregates_field_on: bool = True  # If true, aggregates cannot form new links when field is ON
     
     # Derived quantities (set in __post_init__)
     V_box: float = field(init=False)
