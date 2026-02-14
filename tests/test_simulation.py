@@ -531,9 +531,6 @@ def test_simultaneous_binding_to_a_and_b():
     )
     sim = Simulation(params)
     
-    # Track state transitions over a single step
-    initial_states = [a.state for a in sim.antigens]
-    
     # Run one step
     sim.step()
     
