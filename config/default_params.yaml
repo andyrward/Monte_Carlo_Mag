@@ -29,3 +29,6 @@ dt: 0.001
 n_steps_on: 1000
 n_steps_off: 1000
 n_repeats: 5
+
+# Magnetic field behavior
+restrict_aggregates_field_on: true  # If true, aggregates cannot form new links when field is ON

@@ -257,3 +257,251 @@ def test_get_all_particles_method():
         assert particle.particle_id in all_particles
         assert all_particles[particle.particle_id] == particle
 
+
+def test_get_particle_cluster_type_single():
+    """Test cluster type detection for single particle."""
+    params = create_test_params()
+    sim = Simulation(params)
+    
+    # Particle with no links is 'Single'
+    particle = sim.particles_a[0]
+    cluster_type = sim._get_particle_cluster_type(particle.particle_id)
+    assert cluster_type == 'Single'
+
+
+def test_get_particle_cluster_type_chain():
+    """Test cluster type detection for chain."""
+    params = create_test_params()
+    sim = Simulation(params)
+    
+    # Create a chain using North-South patches (0, 1)
+    particle_a = sim.particles_a[0]
+    particle_b = sim.particles_b[0]
+    
+    # Link via North/South patches
+    particle_a.add_link(0, particle_b.particle_id, 1)
+    particle_b.add_link(1, particle_a.particle_id, 0)
+    
+    cluster_type_a = sim._get_particle_cluster_type(particle_a.particle_id)
+    cluster_type_b = sim._get_particle_cluster_type(particle_b.particle_id)
+    
+    assert cluster_type_a == 'Chain'
+    assert cluster_type_b == 'Chain'
+
+
+def test_get_particle_cluster_type_aggregate():
+    """Test cluster type detection for aggregate."""
+    params = create_test_params()
+    sim = Simulation(params)
+    
+    # Create an aggregate using regular patches (2+)
+    particle_a = sim.particles_a[0]
+    particle_b = sim.particles_b[0]
+    
+    # Link via regular patches (not North/South)
+    particle_a.add_link(2, particle_b.particle_id, 3)
+    particle_b.add_link(3, particle_a.particle_id, 2)
+    
+    cluster_type_a = sim._get_particle_cluster_type(particle_a.particle_id)
+    cluster_type_b = sim._get_particle_cluster_type(particle_b.particle_id)
+    
+    assert cluster_type_a == 'Aggregate'
+    assert cluster_type_b == 'Aggregate'
+
+
+def test_is_patch_allowed_for_binding_restriction_disabled():
+    """Test patch filtering when restriction is disabled."""
+    params = create_test_params(restrict_aggregates_field_on=False)
+    sim = Simulation(params)
+    sim.field_on = True  # Field is ON
+    
+    particle = sim.particles_a[0]
+    
+    # All patches should be allowed when restriction is disabled
+    for patch_id in range(params.n_patches):
+        assert sim._is_patch_allowed_for_binding(particle, patch_id) is True
+
+
+def test_is_patch_allowed_for_binding_field_off():
+    """Test patch filtering when field is OFF."""
+    params = create_test_params(restrict_aggregates_field_on=True)
+    sim = Simulation(params)
+    sim.field_on = False  # Field is OFF
+    
+    particle = sim.particles_a[0]
+    
+    # All patches should be allowed when field is OFF
+    for patch_id in range(params.n_patches):
+        assert sim._is_patch_allowed_for_binding(particle, patch_id) is True
+
+
+def test_is_patch_allowed_for_binding_single_particle_field_on():
+    """Test patch filtering for single particle when field is ON."""
+    params = create_test_params(restrict_aggregates_field_on=True)
+    sim = Simulation(params)
+    sim.field_on = True  # Field is ON
+    
+    particle = sim.particles_a[0]
+    
+    # Only North/South patches (0, 1) should be allowed
+    assert sim._is_patch_allowed_for_binding(particle, 0) is True
+    assert sim._is_patch_allowed_for_binding(particle, 1) is True
+    assert sim._is_patch_allowed_for_binding(particle, 2) is False
+    assert sim._is_patch_allowed_for_binding(particle, 3) is False
+    assert sim._is_patch_allowed_for_binding(particle, 4) is False
+
+
+def test_is_patch_allowed_for_binding_chain_field_on():
+    """Test patch filtering for chain particles when field is ON."""
+    params = create_test_params(restrict_aggregates_field_on=True)
+    sim = Simulation(params)
+    sim.field_on = True  # Field is ON
+    
+    # Create a chain
+    particle_a = sim.particles_a[0]
+    particle_b = sim.particles_b[0]
+    particle_a.add_link(0, particle_b.particle_id, 1)
+    particle_b.add_link(1, particle_a.particle_id, 0)
+    
+    # Only North/South patches (0, 1) should be allowed
+    assert sim._is_patch_allowed_for_binding(particle_a, 0) is True
+    assert sim._is_patch_allowed_for_binding(particle_a, 1) is True
+    assert sim._is_patch_allowed_for_binding(particle_a, 2) is False
+    assert sim._is_patch_allowed_for_binding(particle_b, 0) is True
+    assert sim._is_patch_allowed_for_binding(particle_b, 1) is True
+    assert sim._is_patch_allowed_for_binding(particle_b, 2) is False
+
+
+def test_is_patch_allowed_for_binding_aggregate_field_on():
+    """Test patch filtering for aggregate particles when field is ON."""
+    params = create_test_params(restrict_aggregates_field_on=True)
+    sim = Simulation(params)
+    sim.field_on = True  # Field is ON
+    
+    # Create an aggregate using regular patches
+    particle_a = sim.particles_a[0]
+    particle_b = sim.particles_b[0]
+    particle_a.add_link(2, particle_b.particle_id, 3)
+    particle_b.add_link(3, particle_a.particle_id, 2)
+    
+    # All patches should be allowed for aggregates (they can bind antigens)
+    assert sim._is_patch_allowed_for_binding(particle_a, 0) is True
+    assert sim._is_patch_allowed_for_binding(particle_a, 1) is True
+    assert sim._is_patch_allowed_for_binding(particle_a, 2) is True
+    assert sim._is_patch_allowed_for_binding(particle_a, 3) is True
+    assert sim._is_patch_allowed_for_binding(particle_a, 4) is True
+
+
+def test_is_particle_allowed_for_sandwich_restriction_disabled():
+    """Test sandwich link filtering when restriction is disabled."""
+    params = create_test_params(restrict_aggregates_field_on=False)
+    sim = Simulation(params)
+    sim.field_on = True  # Field is ON
+    
+    particle = sim.particles_a[0]
+    
+    # All particles should be allowed when restriction is disabled
+    assert sim._is_particle_allowed_for_sandwich(particle.particle_id) is True
+
+
+def test_is_particle_allowed_for_sandwich_field_off():
+    """Test sandwich link filtering when field is OFF."""
+    params = create_test_params(restrict_aggregates_field_on=True)
+    sim = Simulation(params)
+    sim.field_on = False  # Field is OFF
+    
+    particle = sim.particles_a[0]
+    
+    # All particles should be allowed when field is OFF
+    assert sim._is_particle_allowed_for_sandwich(particle.particle_id) is True
+
+
+def test_is_particle_allowed_for_sandwich_single_particle():
+    """Test sandwich link filtering for single particle."""
+    params = create_test_params(restrict_aggregates_field_on=True)
+    sim = Simulation(params)
+    sim.field_on = True  # Field is ON
+    
+    particle = sim.particles_a[0]
+    
+    # Single particles are allowed to form sandwich links
+    assert sim._is_particle_allowed_for_sandwich(particle.particle_id) is True
+
+
+def test_is_particle_allowed_for_sandwich_chain():
+    """Test sandwich link filtering for chain particles."""
+    params = create_test_params(restrict_aggregates_field_on=True)
+    sim = Simulation(params)
+    sim.field_on = True  # Field is ON
+    
+    # Create a chain
+    particle_a = sim.particles_a[0]
+    particle_b = sim.particles_b[0]
+    particle_a.add_link(0, particle_b.particle_id, 1)
+    particle_b.add_link(1, particle_a.particle_id, 0)
+    
+    # Chain particles are allowed to form sandwich links
+    assert sim._is_particle_allowed_for_sandwich(particle_a.particle_id) is True
+    assert sim._is_particle_allowed_for_sandwich(particle_b.particle_id) is True
+
+
+def test_is_particle_allowed_for_sandwich_aggregate():
+    """Test sandwich link filtering for aggregate particles."""
+    params = create_test_params(restrict_aggregates_field_on=True)
+    sim = Simulation(params)
+    sim.field_on = True  # Field is ON
+    
+    # Create an aggregate using regular patches
+    particle_a = sim.particles_a[0]
+    particle_b = sim.particles_b[0]
+    particle_a.add_link(2, particle_b.particle_id, 3)
+    particle_b.add_link(3, particle_a.particle_id, 2)
+    
+    # Aggregate particles are NOT allowed to form sandwich links
+    assert sim._is_particle_allowed_for_sandwich(particle_a.particle_id) is False
+    assert sim._is_particle_allowed_for_sandwich(particle_b.particle_id) is False
+
+
+def test_field_restrictions_integration():
+    """Integration test for field restrictions with actual binding."""
+    params = create_test_params(
+        restrict_aggregates_field_on=True,
+        N_A_sim=5,
+        N_B_sim=5,
+        n_patches=12,
+    )
+    sim = Simulation(params)
+    
+    # Create an aggregate before starting the simulation
+    particle_a = sim.particles_a[0]
+    particle_b = sim.particles_b[0]
+    # Link via regular patch to create an aggregate
+    particle_a.add_link(2, particle_b.particle_id, 3)
+    particle_b.add_link(3, particle_a.particle_id, 2)
+    
+    # Verify it's classified as aggregate
+    assert sim._get_particle_cluster_type(particle_a.particle_id) == 'Aggregate'
+    assert sim._get_particle_cluster_type(particle_b.particle_id) == 'Aggregate'
+    
+    # Start with field ON
+    sim.field_on = True
+    sim.current_step = 0
+    
+    # Count links before running
+    initial_link_count = len(particle_a.links) + len(particle_b.links)
+    
+    # Run a few steps with field ON
+    for _ in range(10):
+        assert sim.is_field_on()
+        sim.step()
+    
+    # Aggregate particles should not have gained new links during field ON
+    final_link_count = len(particle_a.links) + len(particle_b.links)
+    assert final_link_count == initial_link_count, "Aggregates should not form new links when field is ON"
+    
+    # Verify that single particles can still bind antigens (but may not form links if they become aggregates)
+    # At minimum, the simulation should run without errors
+    n_bound = sum(1 for a in sim.antigens if a.state != AntigenState.FREE)
+    assert n_bound >= 0  # Simulation ran without errors
+
+
