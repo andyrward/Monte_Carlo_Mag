@@ -127,6 +127,21 @@ class Simulation:
         """
         return self._all_particles
     
+    def get_antigen_counts(self) -> dict[str, int]:
+        """
+        Get current counts of antigens in each state.
+        
+        Returns:
+            Dictionary with counts for 'Free', 'Bound_A', 'Bound_B', 'Sandwich'
+        """
+        counts = {
+            'Free': sum(1 for a in self.antigens if a.state == AntigenState.FREE),
+            'Bound_A': sum(1 for a in self.antigens if a.state == AntigenState.BOUND_A),
+            'Bound_B': sum(1 for a in self.antigens if a.state == AntigenState.BOUND_B),
+            'Sandwich': sum(1 for a in self.antigens if a.state == AntigenState.SANDWICH),
+        }
+        return counts
+    
     def _process_antigen_events(self) -> None:
         """
         Process all possible binding/unbinding events for each antigen.
