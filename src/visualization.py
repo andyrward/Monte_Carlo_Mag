@@ -7,7 +7,7 @@ Install with: pip install -e ".[visualization]"
 
 import random
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Any
 
 try:
     import numpy as np
@@ -19,10 +19,12 @@ try:
     HAS_DEPENDENCIES = True
 except ImportError:
     HAS_DEPENDENCIES = False
+    np = None  # type: ignore
 
 if TYPE_CHECKING:
     from .simulation import Simulation
     from .particle import Particle
+    import numpy as np
 
 
 def generate_non_overlapping_positions(
@@ -30,7 +32,7 @@ def generate_non_overlapping_positions(
     box_size: float = 10.0,
     particle_radius: float = 0.3,
     max_attempts: int = 10000
-) -> np.ndarray:
+) -> Any:  # Would be np.ndarray if numpy available
     """
     Generate non-overlapping positions for particles in 3D space.
     
@@ -83,7 +85,7 @@ def generate_non_overlapping_positions(
 
 def visualize_system_3d(
     simulation: 'Simulation',
-    positions: Optional[np.ndarray] = None,
+    positions: Optional[Any] = None,  # Would be np.ndarray if numpy available
     title: str = "Magnetic Nanoparticle System",
     box_size: float = 10.0,
     particle_radius: float = 0.3,

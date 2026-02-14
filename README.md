@@ -298,6 +298,61 @@ The comparison helps identify:
 - How well MC statistics converge to ODE predictions
 - Any systematic biases in the KMC algorithm
 
+## Minimal KMC Validation
+
+The repository includes a minimal kinetic Monte Carlo (KMC) implementation that strips away all complexity (particles, patches, fields) to test the core binding kinetics in isolation.
+
+### Purpose
+
+The minimal KMC validates that the probability model correctly implements the underlying kinetic rate equations by comparing against analytical ODE solutions. This is useful for:
+- Debugging the core KMC algorithm
+- Understanding how stochastic fluctuations affect convergence
+- Testing parameter sensitivity (especially time step)
+- Isolating kinetic effects from spatial constraints
+
+### Components
+
+1. **`src/minimal_kmc.py`**: Reusable functions for minimal KMC simulation
+   - `MinimalAntigen`: Simple state tracker (Free, Bound_A, Bound_B, Sandwich)
+   - `run_minimal_kmc()`: Run a single KMC simulation
+   - `run_multiple_replicates()`: Run multiple replicates for statistics
+   - `calculate_statistics()`: Calculate mean and std across replicates
+   - `compare_kmc_to_ode()`: Compare final states between KMC and ODE
+
+2. **`notebooks/minimal_kmc_test.ipynb`**: Interactive Jupyter notebook
+   - Visual comparison of KMC vs ODE trajectories
+   - Convergence tests with different time steps
+   - Parameter exploration playground
+
+### Usage
+
+**Install notebook dependencies:**
+```bash
+pip install -e ".[notebooks,visualization]"
+```
+
+**Launch Jupyter:**
+```bash
+jupyter notebook notebooks/minimal_kmc_test.ipynb
+```
+
+The notebook runs multiple KMC replicates and compares them against ODE solutions, showing:
+- Time evolution of all states (Free, Bound_A, Bound_B, Sandwich)
+- Statistical error bars from multiple replicates
+- Equilibrium predictions
+- Numerical comparison at final time
+- Convergence with decreasing time step
+
+### Expected Results
+
+With proper implementation, KMC results should:
+- Match ODE trajectories within statistical error
+- Show decreasing error bars with more replicates
+- Converge to ODE with smaller time steps
+- Reach analytical equilibrium predictions
+
+If results don't match, it indicates a bug in the probability model!
+
 ## Development Status
 
 Current features:

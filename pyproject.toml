@@ -20,6 +20,12 @@ visualization = [
     "matplotlib>=3.7",
 ]
 
+notebooks = [
+    "jupyter>=1.0.0",
+    "ipywidgets>=8.0.0",
+    "notebook>=7.0.0",
+]
+
 [tool.pytest.ini_options]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
