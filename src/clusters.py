@@ -51,8 +51,6 @@ def find_clusters(particles: dict[int, 'Particle']) -> list[set[int]]:
             clusters.append(cluster)
     
     return clusters
-    
-    return clusters
 
 
 def classify_cluster(cluster: set[int], particles: dict[int, 'Particle']) -> str:

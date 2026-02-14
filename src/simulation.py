@@ -135,8 +135,11 @@ class Simulation:
         per timestep (either binding or unbinding), selected randomly from
         available candidates.
         """
-        # Process antigens in random order without copying the entire list
-        for idx in random.sample(range(len(self.antigens)), len(self.antigens)):
+        # Create list of indices and shuffle them
+        indices = list(range(len(self.antigens)))
+        random.shuffle(indices)
+        
+        for idx in indices:
             antigen = self.antigens[idx]
             
             # Collect all possible events for this antigen
