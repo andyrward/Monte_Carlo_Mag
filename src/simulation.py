@@ -132,7 +132,9 @@ class Simulation:
         Process all possible binding/unbinding events for each antigen.
         
         Each antigen attempts ALL applicable reactions independently per timestep.
-        This ensures proper KMC kinetics where events are independent.
+        This ensures proper KMC kinetics where events are independent. Reactions
+        are determined based on the antigen's state at the start of the timestep,
+        not mid-timestep state changes.
         """
         # Create list of indices and shuffle them
         indices = list(range(len(self.antigens)))
@@ -141,22 +143,26 @@ class Simulation:
         for idx in indices:
             antigen = self.antigens[idx]
             
-            # Try all applicable reactions independently
+            # Capture initial state at start of timestep
+            # All reaction decisions are based on this initial state
+            initial_state = antigen.state
             
-            # Try binding to A (if not already bound to A)
-            if antigen.state == AntigenState.FREE or antigen.state == AntigenState.BOUND_B:
+            # Try all applicable reactions independently based on initial state
+            
+            # Try binding to A (if not already bound to A at start)
+            if initial_state == AntigenState.FREE or initial_state == AntigenState.BOUND_B:
                 self._attempt_binding(antigen, 'A')
             
-            # Try binding to B (if not already bound to B)
-            if antigen.state == AntigenState.FREE or antigen.state == AntigenState.BOUND_A:
+            # Try binding to B (if not already bound to B at start)
+            if initial_state == AntigenState.FREE or initial_state == AntigenState.BOUND_A:
                 self._attempt_binding(antigen, 'B')
             
-            # Try unbinding from A (if bound to A)
-            if antigen.state == AntigenState.BOUND_A or antigen.state == AntigenState.SANDWICH:
+            # Try unbinding from A (if bound to A at start)
+            if initial_state == AntigenState.BOUND_A or initial_state == AntigenState.SANDWICH:
                 self._attempt_unbinding(antigen, 'A')
             
-            # Try unbinding from B (if bound to B)
-            if antigen.state == AntigenState.BOUND_B or antigen.state == AntigenState.SANDWICH:
+            # Try unbinding from B (if bound to B at start)
+            if initial_state == AntigenState.BOUND_B or initial_state == AntigenState.SANDWICH:
                 self._attempt_unbinding(antigen, 'B')
     
     def _calculate_binding_probability(self, antigen: Antigen, bind_type: str) -> float:
