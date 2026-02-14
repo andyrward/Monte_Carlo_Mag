@@ -6,7 +6,7 @@ C_B: 10.0
 C_antigen: 1.0
 
 # Enhanced concentration (M)
-C_enhancement: 1.0e-6
+C_enhancement: 0.000001
 
 # Simulation size
 N_A_sim: 50
@@ -16,14 +16,14 @@ N_B_sim: 50
 antibodies_per_particle: 1000
 n_patches: 12
 
-# Kinetic rates
-kon_a: 1.0e5  # M^-1 s^-1
-koff_a: 0.1   # s^-1
-kon_b: 1.0e5  # M^-1 s^-1
-koff_b: 0.1   # s^-1
+# Kinetic rates (M^-1 s^-1 for kon, s^-1 for koff)
+kon_a: 100000.0
+koff_a: 0.1
+kon_b: 100000.0
+koff_b: 0.1
 
-# Time stepping
-dt: 0.001  # seconds
+# Time stepping (seconds)
+dt: 0.001
 
 # Field profile
 n_steps_on: 1000
