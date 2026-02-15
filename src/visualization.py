@@ -179,17 +179,85 @@ def layout_cluster_geometric(
     return positions
 
 
+def generate_non_overlapping_positions_in_region(
+    n_particles: int,
+    center: Any,  # np.ndarray
+    region_size: float,
+    particle_radius: float,
+    max_attempts: int = 5000
+) -> Any:  # np.ndarray
+    """
+    Generate non-overlapping positions within a cubic region.
+    
+    Args:
+        n_particles: Number of particles to place
+        center: Center of the region (3D array)
+        region_size: Size of cubic region (full width, particles placed in [-region_size/2, +region_size/2] around center)
+        particle_radius: Radius of each particle
+        max_attempts: Maximum attempts to place each particle
+        
+    Returns:
+        Array of shape (n_particles, 3) with particle positions
+        
+    Raises:
+        RuntimeError: If unable to place all particles
+        ImportError: If numpy is not available
+    """
+    if not HAS_DEPENDENCIES:
+        raise ImportError("Visualization requires numpy and matplotlib. Install with: pip install -e '.[visualization]'")
+    
+    positions = []
+    min_distance = 2.2 * particle_radius  # Slightly more than touching
+    
+    for i in range(n_particles):
+        placed = False
+        
+        for attempt in range(max_attempts):
+            # Random position in region around center
+            offset = np.random.uniform(-region_size/2, region_size/2, 3)
+            pos = center + offset
+            
+            # Check distance to all existing particles
+            if len(positions) == 0:
+                positions.append(pos)
+                placed = True
+                break
+            
+            distances = np.linalg.norm(np.array(positions) - pos, axis=1)
+            if np.all(distances >= min_distance):
+                positions.append(pos)
+                placed = True
+                break
+        
+        if not placed:
+            # If can't place with no overlap, place anyway with best effort
+            if len(positions) > 0:
+                # Find farthest point from existing particles
+                best_pos = center
+                best_min_dist = 0
+                for _ in range(100):
+                    test_pos = center + np.random.uniform(-region_size/2, region_size/2, 3)
+                    distances = np.linalg.norm(np.array(positions) - test_pos, axis=1)
+                    min_dist = np.min(distances)
+                    if min_dist > best_min_dist:
+                        best_pos = test_pos
+                        best_min_dist = min_dist
+                positions.append(best_pos)
+            else:
+                positions.append(center)
+    
+    return np.array(positions)
+
+
 def layout_particles_geometric(simulation: 'Simulation', particle_radius: float = 0.3) -> Any:
     """
-    Position particles geometrically based on patch linkages.
+    Position particles with cluster-aware random layout.
     
     Algorithm:
-    1. Find all clusters using existing cluster detection
-    2. For each cluster:
-       - Pick a seed particle, place at cluster origin
-       - Use BFS to place connected particles geometrically
-       - Position each particle so linked patches are touching
-    3. Space clusters apart horizontally
+    1. Find all clusters
+    2. Assign each cluster to a region in 3D space (grid layout)
+    3. Within each region, randomly place particles with no overlap
+    4. Particles in same cluster stay together, clusters are separated
     
     Args:
         simulation: Simulation object
@@ -207,64 +275,70 @@ def layout_particles_geometric(simulation: 'Simulation', particle_radius: float 
     from .clusters import find_clusters
     
     all_particles_dict = simulation.get_all_particles()
-    all_particles = list(all_particles_dict.values())
-    n_particles = len(all_particles)
-    n_patches = simulation.params.n_patches
+    all_particles_list = list(all_particles_dict.values())
+    n_particles = len(all_particles_list)
+    
+    if n_particles == 0:
+        return np.array([]).reshape(0, 3)
     
     # Find all clusters
     clusters = find_clusters(all_particles_dict)
+    n_clusters = len(clusters)
     
-    # Initialize positions dictionary
-    positions = {}
+    # Calculate grid dimensions for clusters (3D grid)
+    # Add 1 to provide extra space and prevent edge clusters from being too close
+    n_per_side = int(np.ceil(n_clusters ** (1/3))) + 1
+    cluster_spacing = 8.0  # Space between cluster centers
+    cluster_region_size = 3.0  # Size of region for each cluster
     
-    # Arrange clusters in a grid
-    # Grid configuration (hard-coded per requirements, can be made configurable later)
-    n_cols = 5  # Number of columns in grid
-    cluster_spacing = 5.0  # Spacing between cluster centers
+    # Map particle_id to position
+    positions_dict = {}
     
-    for i, cluster in enumerate(clusters):
-        # Calculate grid position
-        row = i // n_cols
-        col = i % n_cols
+    for cluster_idx, cluster in enumerate(clusters):
+        # Calculate cluster center in 3D grid
+        grid_x = (cluster_idx % n_per_side)
+        grid_y = ((cluster_idx // n_per_side) % n_per_side)
+        grid_z = (cluster_idx // (n_per_side * n_per_side))
         
-        # Position this cluster geometrically
-        cluster_positions = layout_cluster_geometric(
-            cluster, 
-            all_particles_dict, 
-            particle_radius, 
-            n_patches
-        )
-        
-        # Offset cluster to grid position
         cluster_center = np.array([
-            col * cluster_spacing,  # X position
-            row * cluster_spacing,  # Y position
-            0.0                      # Z position
+            grid_x * cluster_spacing,
+            grid_y * cluster_spacing,
+            grid_z * cluster_spacing
         ])
         
-        for particle_id, pos in cluster_positions.items():
-            positions[particle_id] = pos + cluster_center
+        # Get particles in this cluster
+        cluster_particle_ids = list(cluster)
+        n_cluster_particles = len(cluster_particle_ids)
+        
+        # Generate non-overlapping positions within cluster region
+        if n_cluster_particles == 1:
+            # Single particle at cluster center
+            cluster_positions = np.array([cluster_center])
+        else:
+            # Multiple particles - place randomly in region around center
+            cluster_positions = generate_non_overlapping_positions_in_region(
+                n_particles=n_cluster_particles,
+                center=cluster_center,
+                region_size=cluster_region_size,
+                particle_radius=particle_radius,
+                max_attempts=5000
+            )
+        
+        # Assign positions
+        for i, particle_id in enumerate(cluster_particle_ids):
+            positions_dict[particle_id] = cluster_positions[i]
     
-    # Convert to array indexed by particle order
-    particle_id_to_idx = {p.particle_id: i for i, p in enumerate(all_particles)}
+    # Convert to array in particle order
+    particle_id_to_idx = {p.particle_id: i for i, p in enumerate(all_particles_list)}
     position_array = np.zeros((n_particles, 3))
     
-    fallback_idx = len(clusters)  # Start after last cluster
-    for particle in all_particles:
+    for particle in all_particles_list:
         idx = particle_id_to_idx[particle.particle_id]
-        if particle.particle_id in positions:
-            position_array[idx] = positions[particle.particle_id]
+        if particle.particle_id in positions_dict:
+            position_array[idx] = positions_dict[particle.particle_id]
         else:
-            # Fallback for unconnected particles (should rarely happen)
-            # Place at next available grid position
-            fallback_row = fallback_idx // n_cols
-            fallback_col = fallback_idx % n_cols
-            position_array[idx] = np.array([
-                fallback_col * cluster_spacing,
-                fallback_row * cluster_spacing,
-                0.0
-            ])
-            fallback_idx += 1  # Increment for next unconnected particle
+            # Fallback (shouldn't happen)
+            position_array[idx] = np.random.randn(3) * 10
     
     return position_array
 
