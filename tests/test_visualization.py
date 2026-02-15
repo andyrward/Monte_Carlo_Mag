@@ -12,7 +12,7 @@ try:
     from src import _HAS_VISUALIZATION
     if _HAS_VISUALIZATION:
         from src import visualize_system_3d, create_cycle_snapshots
-        from src.visualization import generate_non_overlapping_positions
+        from src.visualization import generate_non_overlapping_positions, layout_chain_vertical
 except ImportError:
     _HAS_VISUALIZATION = False
 
@@ -426,8 +426,118 @@ def test_clustered_layout_separation():
     center1 = np.mean(cluster1_positions, axis=0)
     center2 = np.mean(cluster2_positions, axis=0)
     
-    # Clusters should be separated by at least cluster_spacing (8.0)
+    # Clusters should be separated by at least cluster_spacing (20.0)
     # Allow some variation due to random placement within regions (region_size=3.0)
-    # Minimum distance = cluster_spacing - region_size = 8.0 - 3.0 = 5.0
+    # Minimum distance = cluster_spacing - region_size = 20.0 - 3.0 = 17.0
     distance = np.linalg.norm(center1 - center2)
-    assert distance >= 5.0  # Clusters on adjacent grid cells, accounting for region spread
+    assert distance >= 17.0  # Clusters on adjacent grid cells, accounting for region spread
+
+
+@pytest.mark.skipif(not _HAS_VISUALIZATION, reason="Requires visualization dependencies")
+def test_layout_chain_vertical():
+    """Test vertical layout of chain particles."""
+    from src.simulation import Simulation
+    import numpy as np
+    
+    params = create_test_params(N_A_sim=3, N_B_sim=1)
+    sim = Simulation(params)
+    
+    # Create a chain: particle 0 -> particle 1 -> particle 2
+    particles = sim.particles_a
+    particles[0].add_link(0, particles[1].particle_id, 1)
+    particles[1].add_link(1, particles[0].particle_id, 0)
+    particles[1].add_link(0, particles[2].particle_id, 1)
+    particles[2].add_link(1, particles[1].particle_id, 0)
+    
+    all_particles = sim.get_all_particles()
+    cluster = {particles[0].particle_id, particles[1].particle_id, particles[2].particle_id}
+    
+    center = np.array([10.0, 20.0, 30.0])
+    particle_radius = 0.5
+    
+    positions = layout_chain_vertical(
+        cluster=cluster,
+        all_particles_dict=all_particles,
+        center=center,
+        particle_radius=particle_radius
+    )
+    
+    # Should have 3 positions
+    assert positions.shape == (3, 3)
+    
+    # All particles should have the same X and Y coordinates (aligned vertically)
+    assert np.allclose(positions[:, 0], center[0])  # All X same
+    assert np.allclose(positions[:, 1], center[1])  # All Y same
+    
+    # Z coordinates should be different and spaced properly
+    z_coords = positions[:, 2]
+    z_diffs = np.diff(sorted(z_coords))
+    expected_spacing = 2.5 * particle_radius  # 1.25
+    assert np.allclose(z_diffs, expected_spacing)
+    
+    # The chain should be centered around the center Z coordinate
+    mean_z = np.mean(z_coords)
+    assert abs(mean_z - center[2]) < 0.01  # Should be very close to center[2]
+
+
+@pytest.mark.skipif(not _HAS_VISUALIZATION, reason="Requires visualization dependencies")
+def test_chain_uses_vertical_layout():
+    """Test that chains are laid out vertically in geometric layout."""
+    from src.simulation import Simulation
+    from src.visualization import layout_particles_geometric
+    from src.clusters import find_clusters, classify_cluster
+    import numpy as np
+    
+    params = create_test_params(N_A_sim=3, N_B_sim=1)
+    sim = Simulation(params)
+    
+    # Create a chain: particle 0 -> particle 1 -> particle 2
+    particles = sim.particles_a
+    particles[0].add_link(0, particles[1].particle_id, 1)
+    particles[1].add_link(1, particles[0].particle_id, 0)
+    particles[1].add_link(0, particles[2].particle_id, 1)
+    particles[2].add_link(1, particles[1].particle_id, 0)
+    
+    # Get positions
+    positions = layout_particles_geometric(sim, particle_radius=0.5)
+    
+    # Verify there's a chain cluster
+    all_particles = sim.get_all_particles()
+    clusters = find_clusters(all_particles)
+    
+    # Find the chain cluster (the one with 3 particles)
+    chain_cluster = None
+    for cluster in clusters:
+        if len(cluster) > 1:
+            cluster_type = classify_cluster(cluster, all_particles)
+            if cluster_type == 'Chain':
+                chain_cluster = cluster
+                break
+    
+    assert chain_cluster is not None, "No chain cluster found"
+    assert len(chain_cluster) == 3, "Chain should have 3 particles"
+    
+    # Extract positions for the chain particles
+    all_particles_list = list(all_particles.values())
+    particle_id_to_idx = {p.particle_id: i for i, p in enumerate(all_particles_list)}
+    
+    chain_positions = []
+    for particle_id in chain_cluster:
+        idx = particle_id_to_idx[particle_id]
+        chain_positions.append(positions[idx])
+    
+    chain_positions = np.array(chain_positions)
+    
+    # All X coordinates should be the same (vertical along Z)
+    x_coords = chain_positions[:, 0]
+    assert np.allclose(x_coords, x_coords[0])
+    
+    # All Y coordinates should be the same
+    y_coords = chain_positions[:, 1]
+    assert np.allclose(y_coords, y_coords[0])
+    
+    # Z coordinates should be different and evenly spaced
+    z_coords = chain_positions[:, 2]
+    assert len(np.unique(z_coords)) == 3  # All different
+    z_diffs = np.diff(sorted(z_coords))
+    assert np.allclose(z_diffs, z_diffs[0])  # Evenly spaced
