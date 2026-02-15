@@ -3,6 +3,7 @@ Main simulation engine for kinetic Monte Carlo simulation.
 """
 
 import random
+from collections import Counter
 from typing import Optional
 
 from .parameters import SimulationParameters
@@ -14,6 +15,7 @@ from .events import (
     calc_unbind_probability,
     calc_neighbor_probability,
 )
+from .clusters import find_clusters, classify_cluster
 
 
 class Simulation:
@@ -236,8 +238,6 @@ class Simulation:
         Returns:
             'Single', 'Chain', or 'Aggregate'
         """
-        from .clusters import find_clusters, classify_cluster
-        
         particle = self._all_particles[particle_id]
         
         # Check if particle has any links
@@ -448,7 +448,6 @@ class Simulation:
         self.history['n_sandwich'].append(n_sandwich)
         
         # Find all clusters
-        from .clusters import find_clusters, classify_cluster
         clusters = find_clusters(self._all_particles)
         
         # Classify clusters and count particles
@@ -472,7 +471,6 @@ class Simulation:
                 n_particles_in_aggregates += cluster_size
         
         # Count chain sizes
-        from collections import Counter
         chain_counter = Counter(chain_sizes)
         n_chains_size_2 = chain_counter.get(2, 0)
         n_chains_size_3 = chain_counter.get(3, 0)
