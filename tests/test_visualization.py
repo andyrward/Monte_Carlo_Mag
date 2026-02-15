@@ -176,3 +176,171 @@ def test_position_consistency_across_snapshots():
     
     # Positions should be different (random)
     assert not np.allclose(saved_positions, new_positions)
+
+
+@pytest.mark.skipif(not _HAS_VISUALIZATION, reason="Requires visualization dependencies")
+def test_get_patch_direction():
+    """Test that patch directions are correct."""
+    from src.visualization import get_patch_direction
+    import numpy as np
+    
+    # Test North patch
+    north = get_patch_direction(0, n_patches=12)
+    assert np.allclose(north, [0.0, 0.0, 1.0])
+    
+    # Test South patch
+    south = get_patch_direction(1, n_patches=12)
+    assert np.allclose(south, [0.0, 0.0, -1.0])
+    
+    # Test regular patches are in XY plane
+    for patch_id in range(2, 12):
+        direction = get_patch_direction(patch_id, n_patches=12)
+        # Z component should be 0
+        assert abs(direction[2]) < 1e-10
+        # Should be unit vector
+        assert abs(np.linalg.norm(direction) - 1.0) < 1e-10
+
+
+@pytest.mark.skipif(not _HAS_VISUALIZATION, reason="Requires visualization dependencies")
+def test_calculate_linked_particle_position():
+    """Test calculation of linked particle position."""
+    from src.visualization import calculate_linked_particle_position
+    import numpy as np
+    
+    particle_radius = 0.5
+    particle1_center = np.array([0.0, 0.0, 0.0])
+    
+    # Link North patch (0) of particle 1 to South patch (1) of particle 2
+    particle2_center = calculate_linked_particle_position(
+        particle1_center, 0, 1, particle_radius, n_patches=12
+    )
+    
+    # Particle 2 should be directly above particle 1
+    # North of p1 at (0, 0, 0.5), South of p2 at particle2_center + (0, 0, -0.5)
+    # These should be the same point
+    expected_particle2_center = np.array([0.0, 0.0, 2 * particle_radius])
+    assert np.allclose(particle2_center, expected_particle2_center)
+    
+    # Check distance between centers
+    distance = np.linalg.norm(particle2_center - particle1_center)
+    assert abs(distance - 2 * particle_radius) < 1e-10
+
+
+@pytest.mark.skipif(not _HAS_VISUALIZATION, reason="Requires visualization dependencies")
+def test_layout_cluster_geometric():
+    """Test geometric layout of a cluster."""
+    from src.visualization import layout_cluster_geometric
+    from src.simulation import Simulation
+    import numpy as np
+    
+    params = create_test_params(N_A_sim=3, N_B_sim=1)
+    sim = Simulation(params)
+    
+    # Create a chain: particle 0 -> particle 1 -> particle 2
+    particles = sim.particles_a
+    particles[0].add_link(0, particles[1].particle_id, 1)
+    particles[1].add_link(1, particles[0].particle_id, 0)
+    particles[1].add_link(0, particles[2].particle_id, 1)
+    particles[2].add_link(1, particles[1].particle_id, 0)
+    
+    all_particles = sim.get_all_particles()
+    cluster = {particles[0].particle_id, particles[1].particle_id, particles[2].particle_id}
+    
+    positions = layout_cluster_geometric(
+        cluster, all_particles, particle_radius=0.5, n_patches=sim.params.n_patches
+    )
+    
+    # Should have positions for all 3 particles
+    assert len(positions) == 3
+    
+    # First particle at origin
+    assert np.allclose(positions[particles[0].particle_id], [0.0, 0.0, 0.0])
+    
+    # Particles should be spaced 2*radius apart (touching)
+    dist_01 = np.linalg.norm(
+        positions[particles[1].particle_id] - positions[particles[0].particle_id]
+    )
+    assert abs(dist_01 - 1.0) < 1e-10  # 2 * 0.5
+    
+    dist_12 = np.linalg.norm(
+        positions[particles[2].particle_id] - positions[particles[1].particle_id]
+    )
+    assert abs(dist_12 - 1.0) < 1e-10
+
+
+@pytest.mark.skipif(not _HAS_VISUALIZATION, reason="Requires visualization dependencies")
+def test_layout_particles_geometric():
+    """Test geometric layout of all particles."""
+    from src.visualization import layout_particles_geometric
+    from src.simulation import Simulation
+    import numpy as np
+    
+    params = create_test_params(N_A_sim=2, N_B_sim=2)
+    sim = Simulation(params)
+    
+    # Create a link between two particles
+    sim.particles_a[0].add_link(0, sim.particles_b[0].particle_id, 1)
+    sim.particles_b[0].add_link(1, sim.particles_a[0].particle_id, 0)
+    
+    positions = layout_particles_geometric(sim, particle_radius=0.5)
+    
+    # Should return array with correct shape
+    n_particles = len(sim.get_all_particles())
+    assert positions.shape == (n_particles, 3)
+    
+    # All positions should be finite
+    assert np.all(np.isfinite(positions))
+
+
+@pytest.mark.skipif(not _HAS_VISUALIZATION, reason="Requires visualization dependencies")
+def test_visualize_with_geometric_layout(tmp_path):
+    """Test visualization with geometric layout."""
+    from src.simulation import Simulation
+    
+    params = create_test_params()
+    sim = Simulation(params)
+    
+    # Create a link
+    particle_a = sim.particles_a[0]
+    particle_b = sim.particles_b[0]
+    particle_a.add_link(0, particle_b.particle_id, 1)
+    particle_b.add_link(1, particle_a.particle_id, 0)
+    
+    output_path = tmp_path / "test_geometric.png"
+    
+    # Use geometric layout
+    visualize_system_3d(
+        sim,
+        title="Test Geometric Layout",
+        save_path=output_path,
+        use_geometric_layout=True,
+        show_patch_directions=True,
+    )
+    
+    # Check file was created
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+@pytest.mark.skipif(not _HAS_VISUALIZATION, reason="Requires visualization dependencies")
+def test_visualize_without_geometric_layout(tmp_path):
+    """Test visualization with random layout (backward compatibility)."""
+    from src.simulation import Simulation
+    
+    params = create_test_params()
+    sim = Simulation(params)
+    
+    output_path = tmp_path / "test_random.png"
+    
+    # Use random layout
+    visualize_system_3d(
+        sim,
+        title="Test Random Layout",
+        save_path=output_path,
+        use_geometric_layout=False,
+        show_patch_directions=False,
+    )
+    
+    # Check file was created
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0

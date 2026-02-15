@@ -27,6 +27,282 @@ if TYPE_CHECKING:
     import numpy as np
 
 
+def get_patch_direction(patch_id: int, n_patches: int = 12) -> Any:
+    """
+    Get the 3D direction vector for a patch on a particle.
+    
+    Patch layout:
+    - Patch 0 (North): +Z direction
+    - Patch 1 (South): -Z direction  
+    - Patches 2-11: Distributed around equator in XY plane
+    
+    Args:
+        patch_id: Patch index (0 to n_patches-1)
+        n_patches: Total number of patches
+        
+    Returns:
+        Unit vector (3D numpy array) pointing from particle center to patch position
+        
+    Raises:
+        ImportError: If numpy is not available
+    """
+    if not HAS_DEPENDENCIES:
+        raise ImportError("Visualization requires numpy and matplotlib. Install with: pip install -e '.[visualization]'")
+    
+    if patch_id == 0:  # North
+        return np.array([0.0, 0.0, 1.0])
+    elif patch_id == 1:  # South
+        return np.array([0.0, 0.0, -1.0])
+    else:
+        # Distribute remaining patches around equator (in XY plane)
+        n_regular = n_patches - 2
+        angle_index = patch_id - 2
+        theta = 2 * np.pi * angle_index / n_regular
+        return np.array([np.cos(theta), np.sin(theta), 0.0])
+
+
+def calculate_linked_particle_position(
+    particle1_center: Any,
+    patch1_id: int,
+    patch2_id: int,
+    particle_radius: float,
+    n_patches: int
+) -> Any:
+    """
+    Calculate position of particle 2 such that patch1 and patch2 are touching.
+    
+    Args:
+        particle1_center: Position (3D array) of particle 1 center
+        patch1_id: Which patch on particle 1
+        patch2_id: Which patch on particle 2
+        particle_radius: Radius of particles
+        n_patches: Total patches per particle
+        
+    Returns:
+        Position (3D array) of particle 2 center
+        
+    Raises:
+        ImportError: If numpy is not available
+    """
+    if not HAS_DEPENDENCIES:
+        raise ImportError("Visualization requires numpy and matplotlib. Install with: pip install -e '.[visualization]'")
+    
+    # Get patch directions
+    patch1_direction = get_patch_direction(patch1_id, n_patches)
+    patch2_direction = get_patch_direction(patch2_id, n_patches)
+    
+    # Patch 1 position on particle 1 surface
+    patch1_position = particle1_center + particle_radius * patch1_direction
+    
+    # Particle 2 center positioned so patches touch:
+    # patch1_position = particle2_center + particle_radius * patch2_direction
+    # Therefore: particle2_center = patch1_position - particle_radius * patch2_direction
+    particle2_center = patch1_position - particle_radius * patch2_direction
+    
+    return particle2_center
+
+
+def layout_cluster_geometric(
+    cluster: set[int],
+    all_particles_dict: dict[int, 'Particle'],
+    particle_radius: float,
+    n_patches: int
+) -> dict[int, Any]:
+    """
+    Position particles in a single cluster based on their patch connections.
+    
+    Uses BFS from a seed particle to build up the structure geometrically.
+    
+    Args:
+        cluster: Set of particle IDs in this cluster
+        all_particles_dict: Dictionary mapping particle_id to Particle objects
+        particle_radius: Radius of particles
+        n_patches: Number of patches per particle
+        
+    Returns:
+        Dictionary mapping particle_id to position (3D array)
+        
+    Raises:
+        ImportError: If numpy is not available
+    """
+    if not HAS_DEPENDENCIES:
+        raise ImportError("Visualization requires numpy and matplotlib. Install with: pip install -e '.[visualization]'")
+    
+    from collections import deque
+    
+    if len(cluster) == 0:
+        return {}
+    
+    positions = {}
+    
+    # Pick seed particle (place at origin of cluster)
+    seed_particle_id = list(cluster)[0]
+    positions[seed_particle_id] = np.array([0.0, 0.0, 0.0])
+    
+    # BFS to place connected particles
+    queue = deque([seed_particle_id])
+    visited = {seed_particle_id}
+    
+    while queue:
+        current_particle_id = queue.popleft()
+        current_particle = all_particles_dict[current_particle_id]
+        current_position = positions[current_particle_id]
+        
+        # Process all links from this particle
+        for my_patch_id, link in current_particle.links.items():
+            other_particle_id, other_patch_id = link
+            
+            # Skip if already placed
+            if other_particle_id in visited:
+                continue
+            
+            # Calculate where to place the other particle
+            other_position = calculate_linked_particle_position(
+                current_position,
+                my_patch_id,
+                other_patch_id,
+                particle_radius,
+                n_patches
+            )
+            
+            positions[other_particle_id] = other_position
+            visited.add(other_particle_id)
+            queue.append(other_particle_id)
+    
+    return positions
+
+
+def layout_particles_geometric(simulation: 'Simulation', particle_radius: float = 0.3) -> Any:
+    """
+    Position particles geometrically based on patch linkages.
+    
+    Algorithm:
+    1. Find all clusters using existing cluster detection
+    2. For each cluster:
+       - Pick a seed particle, place at cluster origin
+       - Use BFS to place connected particles geometrically
+       - Position each particle so linked patches are touching
+    3. Space clusters apart horizontally
+    
+    Args:
+        simulation: Simulation object
+        particle_radius: Radius of particles
+        
+    Returns:
+        Array of shape (n_particles, 3) with particle positions
+        
+    Raises:
+        ImportError: If numpy is not available
+    """
+    if not HAS_DEPENDENCIES:
+        raise ImportError("Visualization requires numpy and matplotlib. Install with: pip install -e '.[visualization]'")
+    
+    from .clusters import find_clusters
+    
+    all_particles_dict = simulation.get_all_particles()
+    all_particles = list(all_particles_dict.values())
+    n_particles = len(all_particles)
+    n_patches = simulation.params.n_patches
+    
+    # Find all clusters
+    clusters = find_clusters(all_particles_dict)
+    
+    # Initialize positions dictionary
+    positions = {}
+    
+    # Space between clusters
+    cluster_spacing = 5.0
+    current_x = 0.0
+    
+    for cluster in clusters:
+        # Position this cluster geometrically
+        cluster_positions = layout_cluster_geometric(
+            cluster, 
+            all_particles_dict, 
+            particle_radius, 
+            n_patches
+        )
+        
+        # Offset cluster to avoid overlap with other clusters
+        cluster_center = np.array([current_x, 0.0, 0.0])
+        for particle_id, pos in cluster_positions.items():
+            positions[particle_id] = pos + cluster_center
+        
+        current_x += cluster_spacing
+    
+    # Convert to array indexed by particle order
+    particle_id_to_idx = {p.particle_id: i for i, p in enumerate(all_particles)}
+    position_array = np.zeros((n_particles, 3))
+    
+    for particle in all_particles:
+        idx = particle_id_to_idx[particle.particle_id]
+        if particle.particle_id in positions:
+            position_array[idx] = positions[particle.particle_id]
+        else:
+            # Fallback for unconnected particles
+            position_array[idx] = np.array([current_x, 0.0, 0.0])
+            current_x += cluster_spacing
+    
+    return position_array
+
+
+def add_patch_direction_markers(
+    ax: Any,
+    positions: Any,
+    all_particles: list['Particle'],
+    particle_radius: float,
+    n_patches: int
+) -> None:
+    """
+    Add visual markers showing North/South patch orientations.
+    
+    Draws colored arrows from particle centers pointing to North (red) and South (blue) patches.
+    This makes it easy to see how particles are oriented in chains vs aggregates.
+    
+    Args:
+        ax: Matplotlib 3D axis
+        positions: Array of particle positions
+        all_particles: List of Particle objects
+        particle_radius: Radius of particles
+        n_patches: Number of patches per particle
+        
+    Raises:
+        ImportError: If numpy is not available
+    """
+    if not HAS_DEPENDENCIES:
+        raise ImportError("Visualization requires numpy and matplotlib. Install with: pip install -e '.[visualization]'")
+    
+    particle_id_to_idx = {p.particle_id: i for i, p in enumerate(all_particles)}
+    
+    for particle in all_particles:
+        idx = particle_id_to_idx[particle.particle_id]
+        center = positions[idx]
+        
+        # Draw North patch (red arrow pointing in +Z initially)
+        north_dir = get_patch_direction(0, n_patches)
+        ax.quiver(
+            center[0], center[1], center[2],
+            north_dir[0], north_dir[1], north_dir[2],
+            length=particle_radius * 1.5,
+            color='red',
+            arrow_length_ratio=0.3,
+            linewidth=2,
+            alpha=0.6
+        )
+        
+        # Draw South patch (blue arrow pointing in -Z initially)
+        south_dir = get_patch_direction(1, n_patches)
+        ax.quiver(
+            center[0], center[1], center[2],
+            south_dir[0], south_dir[1], south_dir[2],
+            length=particle_radius * 1.5,
+            color='blue',
+            arrow_length_ratio=0.3,
+            linewidth=2,
+            alpha=0.6
+        )
+
+
 def generate_non_overlapping_positions(
     n_particles: int,
     box_size: float = 10.0,
@@ -91,6 +367,8 @@ def visualize_system_3d(
     particle_radius: float = 0.3,
     save_path: Optional[Path] = None,
     show_stats: bool = True,
+    show_patch_directions: bool = True,
+    use_geometric_layout: bool = True,
 ) -> None:
     """
     Create 3D visualization of the particle system.
@@ -102,12 +380,14 @@ def visualize_system_3d(
     
     Args:
         simulation: Simulation object with current state
-        positions: Array of particle positions (n_particles, 3). If None, generates random positions.
+        positions: Array of particle positions (n_particles, 3). If None, generates positions.
         title: Plot title
         box_size: Size of the visualization box
         particle_radius: Radius for drawing particles
         save_path: If provided, saves figure to this path
         show_stats: If True, display statistics on the plot
+        show_patch_directions: If True, show North/South patch direction markers
+        use_geometric_layout: If True, use geometric layout based on patch connections
         
     Raises:
         ImportError: If visualization dependencies are not available
@@ -123,7 +403,19 @@ def visualize_system_3d(
     
     # Generate positions if not provided
     if positions is None:
-        positions = generate_non_overlapping_positions(n_particles, box_size, particle_radius)
+        if use_geometric_layout:
+            positions = layout_particles_geometric(simulation, particle_radius)
+            # Adjust box_size to fit geometric layout
+            if len(positions) > 0:
+                # Find bounding box of positions
+                min_coords = np.min(positions, axis=0)
+                max_coords = np.max(positions, axis=0)
+                ranges = max_coords - min_coords
+                # Add padding (50% on each side)
+                box_size = max(10.0, np.max(ranges) * 2.0)
+        else:
+            # Fall back to random positions
+            positions = generate_non_overlapping_positions(n_particles, box_size, particle_radius)
     
     # Find clusters and classify
     clusters = find_clusters(all_particles)
@@ -193,6 +485,14 @@ def visualize_system_3d(
                     color='black', linewidth=2, alpha=0.6
                 )
                 ax.add_line(line)
+    
+    # Add patch direction markers
+    if show_patch_directions:
+        all_particles_list = [all_particles[pid] for pid in particle_ids]
+        add_patch_direction_markers(
+            ax, positions, all_particles_list, 
+            particle_radius, simulation.params.n_patches
+        )
     
     # Set labels and title
     ax.set_xlabel('X', fontsize=12)
