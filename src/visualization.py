@@ -706,8 +706,9 @@ def visualize_system_3d(
                 # Add padding (50% on each side)
                 box_size = max(MIN_BOX_SIZE, np.max(ranges) * BOX_PADDING_MULTIPLIER)
         else:
-            # Fall back to random positions
-            positions = generate_non_overlapping_positions(n_particles, box_size, particle_radius)
+            # Fall back to random positions with smaller radius for fitting in box
+            fallback_radius = min(particle_radius, 0.3)  # Use smaller radius for random layout
+            positions = generate_non_overlapping_positions(n_particles, box_size, fallback_radius)
     
     # Find clusters and classify
     clusters = find_clusters(all_particles)
