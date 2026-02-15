@@ -1,34 +1,33 @@
 # Default simulation parameters for kinetic Monte Carlo simulation
 
 # Concentrations (nM)
-C_A: 10.0
-C_B: 10.0
-C_antigen: 1.0
+C_A: 0.002
+C_B: 0.002
+C_antigen: 0.1
 
 # Enhanced concentration (M)
-C_enhancement: 0.000001
-
+C_enhancement: 0.0000001
 # Simulation size
 N_A_sim: 50
 N_B_sim: 50
 
 # Particle properties
 antibodies_per_particle: 1000
-n_patches: 12
+n_patches: 8
 
 # Kinetic rates (M^-1 s^-1 for kon, s^-1 for koff)
 kon_a: 100000.0
-koff_a: 0.1
+koff_a: 0.0001
 kon_b: 100000.0
-koff_b: 0.1
+koff_b: 0.0001
 
 # Time stepping (seconds)
-dt: 0.001
+dt: 0.1
 
 # Field profile
-n_steps_on: 1000
-n_steps_off: 1000
-n_repeats: 5
+n_steps_on: 5
+n_steps_off: 5
+n_repeats: 500
 
 # Magnetic field behavior
 restrict_aggregates_field_on: true  # If true, aggregates cannot form new links when field is ON

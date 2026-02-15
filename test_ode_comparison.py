@@ -15,7 +15,7 @@ def create_test_params():
         C_A=0.002,  # nM
         C_B=0.002,  # nM
         C_antigen=0.1,  # nM
-        C_enhancement=1.0e-6,  # M
+        C_enhancement=2.0e-9,  # M
         N_A_sim=50,
         N_B_sim=50,
         antibodies_per_particle=1000,
@@ -24,9 +24,9 @@ def create_test_params():
         koff_a=0.0001,  # s⁻¹
         kon_b=1.0e5,  # M⁻¹s⁻¹
         koff_b=0.0001,  # s⁻¹
-        dt=0.1,  # s
+        dt=00.5,  # s
         n_steps_on=10,
-        n_steps_off=10,
+        n_steps_off=0,
         n_repeats=100,
         restrict_aggregates_field_on=True,
     )
@@ -105,8 +105,8 @@ def test_mc_vs_ode_at_t200():
     mc_counts = sim.get_antigen_counts()
     
     # Solve ODE
-    t_span = (0, 200)
-    t_eval = np.array([200.0])
+    t_span = (0,  500)
+    t_eval = np.array([500.0])
     ode_result = solve_binding_odes(params, t_span, t_eval)
     
     ode_counts = {
