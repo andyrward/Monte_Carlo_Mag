@@ -26,6 +26,13 @@ if TYPE_CHECKING:
     from .particle import Particle
     import numpy as np
 
+# Constants for geometric layout
+CLUSTER_SPACING = 5.0  # Distance between clusters in geometric layout
+MIN_BOX_SIZE = 10.0  # Minimum box size for visualization
+BOX_PADDING_MULTIPLIER = 2.0  # Multiplier for box padding around structures
+ARROW_LENGTH_MULTIPLIER = 1.5  # Multiplier for patch direction arrow length
+ARROW_LENGTH_RATIO = 0.3  # Ratio of arrow head to total arrow length
+
 
 def get_patch_direction(patch_id: int, n_patches: int = 12) -> Any:
     """
@@ -211,7 +218,6 @@ def layout_particles_geometric(simulation: 'Simulation', particle_radius: float 
     positions = {}
     
     # Space between clusters
-    cluster_spacing = 5.0
     current_x = 0.0
     
     for cluster in clusters:
@@ -228,7 +234,7 @@ def layout_particles_geometric(simulation: 'Simulation', particle_radius: float 
         for particle_id, pos in cluster_positions.items():
             positions[particle_id] = pos + cluster_center
         
-        current_x += cluster_spacing
+        current_x += CLUSTER_SPACING
     
     # Convert to array indexed by particle order
     particle_id_to_idx = {p.particle_id: i for i, p in enumerate(all_particles)}
@@ -241,7 +247,7 @@ def layout_particles_geometric(simulation: 'Simulation', particle_radius: float 
         else:
             # Fallback for unconnected particles
             position_array[idx] = np.array([current_x, 0.0, 0.0])
-            current_x += cluster_spacing
+            current_x += CLUSTER_SPACING
     
     return position_array
 
@@ -283,9 +289,9 @@ def add_patch_direction_markers(
         ax.quiver(
             center[0], center[1], center[2],
             north_dir[0], north_dir[1], north_dir[2],
-            length=particle_radius * 1.5,
+            length=particle_radius * ARROW_LENGTH_MULTIPLIER,
             color='red',
-            arrow_length_ratio=0.3,
+            arrow_length_ratio=ARROW_LENGTH_RATIO,
             linewidth=2,
             alpha=0.6
         )
@@ -295,9 +301,9 @@ def add_patch_direction_markers(
         ax.quiver(
             center[0], center[1], center[2],
             south_dir[0], south_dir[1], south_dir[2],
-            length=particle_radius * 1.5,
+            length=particle_radius * ARROW_LENGTH_MULTIPLIER,
             color='blue',
-            arrow_length_ratio=0.3,
+            arrow_length_ratio=ARROW_LENGTH_RATIO,
             linewidth=2,
             alpha=0.6
         )
@@ -412,7 +418,7 @@ def visualize_system_3d(
                 max_coords = np.max(positions, axis=0)
                 ranges = max_coords - min_coords
                 # Add padding (50% on each side)
-                box_size = max(10.0, np.max(ranges) * 2.0)
+                box_size = max(MIN_BOX_SIZE, np.max(ranges) * BOX_PADDING_MULTIPLIER)
         else:
             # Fall back to random positions
             positions = generate_non_overlapping_positions(n_particles, box_size, particle_radius)
