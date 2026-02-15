@@ -380,8 +380,8 @@ def layout_particles_geometric(simulation: 'Simulation', particle_radius: float 
     # Calculate grid dimensions for clusters (3D grid)
     # Add 1 to provide extra space and prevent edge clusters from being too close
     n_per_side = int(np.ceil(n_clusters ** (1/3))) + 1
-    cluster_spacing = 20.0  # Much more space between cluster centers
-    cluster_region_size = 3.0  # Size of region for each cluster
+    cluster_spacing = 100.0  # 5x farther apart (was 20.0)
+    cluster_region_size = 10.0  # More room within each cluster region
     
     # Map particle_id to position
     positions_dict = {}

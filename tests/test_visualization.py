@@ -426,11 +426,11 @@ def test_clustered_layout_separation():
     center1 = np.mean(cluster1_positions, axis=0)
     center2 = np.mean(cluster2_positions, axis=0)
     
-    # Clusters should be separated by at least cluster_spacing (20.0)
-    # Allow some variation due to random placement within regions (region_size=3.0)
-    # Minimum distance = cluster_spacing - region_size = 20.0 - 3.0 = 17.0
+    # Clusters should be separated by at least cluster_spacing (100.0)
+    # Allow some variation due to random placement within regions (region_size=10.0)
+    # Minimum distance = cluster_spacing - region_size = 100.0 - 10.0 = 90.0
     distance = np.linalg.norm(center1 - center2)
-    assert distance >= 17.0  # Clusters on adjacent grid cells, accounting for region spread
+    assert distance >= 90.0  # Clusters on adjacent grid cells, accounting for region spread
 
 
 @pytest.mark.skipif(not _HAS_VISUALIZATION, reason="Requires visualization dependencies")
