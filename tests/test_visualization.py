@@ -542,3 +542,46 @@ def test_chain_uses_vertical_layout():
     assert len(np.unique(z_coords)) == 3  # All different
     z_diffs = np.diff(sorted(z_coords))
     assert np.allclose(z_diffs, z_diffs[0])  # Evenly spaced
+
+
+@pytest.mark.skipif(not _HAS_VISUALIZATION, reason="Requires visualization dependencies")
+def test_cluster_spacing_values():
+    """Test that cluster spacing values are set correctly to avoid overlapping chains.
+    
+    Regression test for issue where cluster_spacing was 20.0 instead of 100.0,
+    causing chains to appear stacked at the same location.
+    """
+    from src.visualization import layout_particles_geometric
+    from src.simulation import Simulation
+    import numpy as np
+    
+    # Create simulation with multiple chains
+    params = create_test_params(N_A_sim=4, N_B_sim=4)
+    sim = Simulation(params)
+    
+    # Create 3 separate chains
+    for i in range(3):
+        sim.particles_a[i].add_link(0, sim.particles_b[i].particle_id, 0)
+        sim.particles_b[i].add_link(0, sim.particles_a[i].particle_id, 0)
+    
+    positions = layout_particles_geometric(sim, particle_radius=0.5)
+    
+    # Group positions by cluster center (round X,Y to nearest 100)
+    clusters = {}
+    for i, pos in enumerate(positions):
+        cluster_key = (round(pos[0] / 100.0) * 100, round(pos[1] / 100.0) * 100)
+        if cluster_key not in clusters:
+            clusters[cluster_key] = []
+        clusters[cluster_key].append(pos)
+    
+    # Verify that clusters are separated by at least 100 units (not 20)
+    cluster_centers = list(clusters.keys())
+    for i in range(len(cluster_centers)):
+        for j in range(i + 1, len(cluster_centers)):
+            c1, c2 = cluster_centers[i], cluster_centers[j]
+            distance = np.sqrt((c1[0] - c2[0])**2 + (c1[1] - c2[1])**2)
+            # Clusters should be 100 units apart (not 20), allowing for rounding
+            assert distance >= 90.0, f"Clusters too close: {distance:.1f} < 90 (expected >=100)"
+    
+    # Verify we have multiple distinct clusters (not all stacked)
+    assert len(clusters) >= 5, f"Expected at least 5 clusters, got {len(clusters)}"
