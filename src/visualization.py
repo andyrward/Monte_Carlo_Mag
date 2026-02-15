@@ -218,6 +218,7 @@ def layout_particles_geometric(simulation: 'Simulation', particle_radius: float 
     positions = {}
     
     # Arrange clusters in a grid
+    # Grid configuration (hard-coded per requirements, can be made configurable later)
     n_cols = 5  # Number of columns in grid
     cluster_spacing = 5.0  # Spacing between cluster centers
     
@@ -248,6 +249,7 @@ def layout_particles_geometric(simulation: 'Simulation', particle_radius: float 
     particle_id_to_idx = {p.particle_id: i for i, p in enumerate(all_particles)}
     position_array = np.zeros((n_particles, 3))
     
+    fallback_idx = len(clusters)  # Start after last cluster
     for particle in all_particles:
         idx = particle_id_to_idx[particle.particle_id]
         if particle.particle_id in positions:
@@ -255,7 +257,6 @@ def layout_particles_geometric(simulation: 'Simulation', particle_radius: float 
         else:
             # Fallback for unconnected particles (should rarely happen)
             # Place at next available grid position
-            fallback_idx = len(clusters)
             fallback_row = fallback_idx // n_cols
             fallback_col = fallback_idx % n_cols
             position_array[idx] = np.array([
@@ -263,6 +264,7 @@ def layout_particles_geometric(simulation: 'Simulation', particle_radius: float 
                 fallback_row * cluster_spacing,
                 0.0
             ])
+            fallback_idx += 1  # Increment for next unconnected particle
     
     return position_array
 
