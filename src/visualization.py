@@ -217,10 +217,15 @@ def layout_particles_geometric(simulation: 'Simulation', particle_radius: float 
     # Initialize positions dictionary
     positions = {}
     
-    # Space between clusters
-    current_x = 0.0
+    # Arrange clusters in a grid
+    n_cols = 5  # Number of columns in grid
+    cluster_spacing = 5.0  # Spacing between cluster centers
     
-    for cluster in clusters:
+    for i, cluster in enumerate(clusters):
+        # Calculate grid position
+        row = i // n_cols
+        col = i % n_cols
+        
         # Position this cluster geometrically
         cluster_positions = layout_cluster_geometric(
             cluster, 
@@ -229,12 +234,15 @@ def layout_particles_geometric(simulation: 'Simulation', particle_radius: float 
             n_patches
         )
         
-        # Offset cluster to avoid overlap with other clusters
-        cluster_center = np.array([current_x, 0.0, 0.0])
+        # Offset cluster to grid position
+        cluster_center = np.array([
+            col * cluster_spacing,  # X position
+            row * cluster_spacing,  # Y position
+            0.0                      # Z position
+        ])
+        
         for particle_id, pos in cluster_positions.items():
             positions[particle_id] = pos + cluster_center
-        
-        current_x += CLUSTER_SPACING
     
     # Convert to array indexed by particle order
     particle_id_to_idx = {p.particle_id: i for i, p in enumerate(all_particles)}
@@ -245,9 +253,16 @@ def layout_particles_geometric(simulation: 'Simulation', particle_radius: float 
         if particle.particle_id in positions:
             position_array[idx] = positions[particle.particle_id]
         else:
-            # Fallback for unconnected particles
-            position_array[idx] = np.array([current_x, 0.0, 0.0])
-            current_x += CLUSTER_SPACING
+            # Fallback for unconnected particles (should rarely happen)
+            # Place at next available grid position
+            fallback_idx = len(clusters)
+            fallback_row = fallback_idx // n_cols
+            fallback_col = fallback_idx % n_cols
+            position_array[idx] = np.array([
+                fallback_col * cluster_spacing,
+                fallback_row * cluster_spacing,
+                0.0
+            ])
     
     return position_array
 
