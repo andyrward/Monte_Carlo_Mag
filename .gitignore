@@ -35,3 +35,5 @@ build/
 # Jupyter Notebook
 .ipynb_checkpoints
 notebooks/.ipynb_checkpoints/
+# Output directory for visualization
+output/
