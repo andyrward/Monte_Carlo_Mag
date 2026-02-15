@@ -281,11 +281,13 @@ def layout_chain_vertical(
     if n_particles == 0:
         return np.array([]).reshape(0, 3)
     
-    # For a chain, find the endpoints (particles with only 1 link)
+    # For a chain, find the endpoints (particles with only 1 link within the cluster)
     endpoints = []
     for particle_id in cluster_list:
         particle = all_particles_dict[particle_id]
-        if len(particle.links) == 1:
+        # Count links that connect to particles within this cluster
+        cluster_links = [link for link in particle.links.values() if link[0] in cluster]
+        if len(cluster_links) == 1:
             endpoints.append(particle_id)
     
     # Order particles from one end to the other using BFS

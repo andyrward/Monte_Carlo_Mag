@@ -471,12 +471,13 @@ def test_layout_chain_vertical():
     
     # Z coordinates should be different and spaced properly
     z_coords = positions[:, 2]
-    z_diffs = np.diff(sorted(z_coords))
+    z_coords_sorted = sorted(z_coords)
+    z_diffs = np.diff(z_coords_sorted)
     expected_spacing = 2.5 * particle_radius  # 1.25
     assert np.allclose(z_diffs, expected_spacing)
     
     # The chain should be centered around the center Z coordinate
-    mean_z = np.mean(z_coords)
+    mean_z = np.mean(z_coords_sorted)
     assert abs(mean_z - center[2]) < 0.01  # Should be very close to center[2]
 
 
