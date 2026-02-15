@@ -17,7 +17,7 @@ from src import (
 )
 
 if _HAS_VISUALIZATION:
-    from src import visualize_system_3d, create_cycle_snapshots, create_animation
+    from src import visualize_system_3d, create_cycle_snapshots, create_animation, plot_cluster_size_distributions
 
 
 def load_parameters(config_file: str) -> SimulationParameters:
@@ -189,6 +189,16 @@ def main():
             title="Final State",
             save_path=final_path,
         )
+        
+        # Generate cluster size distribution plot
+        distribution_path = output_dir / "cluster_size_distributions.png"
+        print("Generating cluster size distribution plot...")
+        plot_cluster_size_distributions(
+            sim,
+            save_path=distribution_path,
+            title=f"Cluster Size Distributions (t={sim.current_time:.3f})"
+        )
+        print(f"Size distribution plot saved to {distribution_path}")
     
     # Print final statistics
     print("\n" + "=" * 60)

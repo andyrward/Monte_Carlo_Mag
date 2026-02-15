@@ -341,7 +341,96 @@ def layout_chain_vertical(
     return positions
 
 
-def layout_particles_geometric(simulation: 'Simulation', particle_radius: float = 0.3) -> Any:
+def layout_chain_geometric(
+    cluster: set[int],
+    all_particles_dict: dict[int, 'Particle'],
+    center: Any,  # np.ndarray - starting position for this cluster
+    particle_radius: float
+) -> Any:  # np.ndarray
+    """
+    Position chain particles based on actual link geometry.
+    
+    Uses BFS to traverse the chain and places each particle based on
+    which patches are connected, using proper geometric spacing.
+    
+    Args:
+        cluster: Set of particle IDs in the chain
+        all_particles_dict: Dictionary of all particles
+        center: Starting position for first particle in chain
+        particle_radius: Radius of particles
+        
+    Returns:
+        Array of positions for particles in the chain
+    """
+    if not HAS_DEPENDENCIES:
+        raise ImportError("Visualization requires numpy and matplotlib. Install with: pip install -e '.[visualization]'")
+    
+    from collections import deque
+    
+    cluster_list = list(cluster)
+    n_particles = len(cluster_list)
+    
+    if n_particles == 0:
+        return np.array([]).reshape(0, 3)
+    
+    # Find starting particle (endpoint with 1 link, or any particle)
+    start_id = cluster_list[0]
+    for particle_id in cluster_list:
+        particle = all_particles_dict[particle_id]
+        cluster_links = [link for link in particle.links.values() if link[0] in cluster]
+        if len(cluster_links) == 1:
+            start_id = particle_id
+            break
+    
+    # BFS to place particles based on link geometry
+    position_map = {}
+    position_map[start_id] = center.copy()
+    
+    queue = deque([start_id])
+    visited = {start_id}
+    
+    while queue:
+        current_id = queue.popleft()
+        current_particle = all_particles_dict[current_id]
+        current_position = position_map[current_id]
+        
+        # Process all links from this particle
+        for my_patch_id, link in current_particle.links.items():
+            other_id, other_patch_id = link
+            
+            # Skip if already placed or not in cluster
+            if other_id in visited or other_id not in cluster:
+                continue
+            
+            # Calculate position based on patch geometry
+            # My patch direction
+            my_patch_dir = get_patch_direction(my_patch_id, n_patches=12)
+            
+            # Other particle's patch direction (reversed since it connects back)
+            other_patch_dir = get_patch_direction(other_patch_id, n_patches=12)
+            
+            # Position other particle: 
+            # Start from current position, move along my patch direction by 2*radius
+            other_position = current_position + (2.0 * particle_radius) * my_patch_dir
+            
+            position_map[other_id] = other_position
+            visited.add(other_id)
+            queue.append(other_id)
+    
+    # Handle any unvisited particles (shouldn't happen)
+    for particle_id in cluster_list:
+        if particle_id not in position_map:
+            position_map[particle_id] = center + np.random.randn(3) * particle_radius
+    
+    # Return positions in same order as cluster_list
+    positions = np.zeros((n_particles, 3))
+    for i, particle_id in enumerate(cluster_list):
+        positions[i] = position_map[particle_id]
+    
+    return positions
+
+
+def layout_particles_geometric(simulation: 'Simulation', particle_radius: float = 100.0) -> Any:
     """
     Position particles with cluster-aware random layout.
     
@@ -380,7 +469,7 @@ def layout_particles_geometric(simulation: 'Simulation', particle_radius: float 
     # Calculate grid dimensions for clusters (3D grid)
     # Add 1 to provide extra space and prevent edge clusters from being too close
     n_per_side = int(np.ceil(n_clusters ** (1/3))) + 1
-    cluster_spacing = 100.0  # 5x farther apart (was 20.0)
+    cluster_spacing = 1000.0  # Large spacing between cluster starting positions
     cluster_region_size = 10.0  # More room within each cluster region
     
     # Map particle_id to position
@@ -414,21 +503,20 @@ def layout_particles_geometric(simulation: 'Simulation', particle_radius: float 
             # Single particle at cluster center
             cluster_positions = np.array([cluster_center])
         elif cluster_type == 'Chain':
-            # Chains extend vertically along Z-axis
-            cluster_positions = layout_chain_vertical(
+            # Chains placed based on actual link geometry
+            cluster_positions = layout_chain_geometric(
                 cluster=cluster,
                 all_particles_dict=all_particles_dict,
                 center=cluster_center,
                 particle_radius=particle_radius
             )
         else:
-            # Aggregates use random placement
-            cluster_positions = generate_non_overlapping_positions_in_region(
-                n_particles=n_cluster_particles,
+            # Aggregates also use geometric placement
+            cluster_positions = layout_chain_geometric(  # Same function works for aggregates
+                cluster=cluster,
+                all_particles_dict=all_particles_dict,
                 center=cluster_center,
-                region_size=cluster_region_size,
-                particle_radius=particle_radius,
-                max_attempts=5000
+                particle_radius=particle_radius
             )
         
         # Assign positions
@@ -568,7 +656,7 @@ def visualize_system_3d(
     positions: Optional[Any] = None,  # Would be np.ndarray if numpy available
     title: str = "Magnetic Nanoparticle System",
     box_size: float = 10.0,
-    particle_radius: float = 0.3,
+    particle_radius: float = 100.0,  # Changed from 0.3 to 100.0
     save_path: Optional[Path] = None,
     show_stats: bool = True,
     show_patch_directions: bool = True,
@@ -759,6 +847,112 @@ def visualize_system_3d(
         print(f"Saved visualization to: {save_path}")
     
     plt.close(fig)
+
+
+def plot_cluster_size_distributions(
+    simulation: 'Simulation',
+    save_path: Optional[Path] = None,
+    title: str = "Cluster Size Distributions"
+) -> None:
+    """
+    Create bar plots showing size distributions of chains and aggregates.
+    
+    Creates a figure with two subplots:
+    - Left: Chain size distribution (number of chains with 2, 3, 4, ... particles)
+    - Right: Aggregate size distribution (number of aggregates with N particles)
+    
+    Args:
+        simulation: Simulation object with current state
+        save_path: If provided, saves figure to this path
+        title: Overall plot title
+        
+    Raises:
+        ImportError: If visualization dependencies are not available
+    """
+    if not HAS_DEPENDENCIES:
+        raise ImportError("Visualization requires numpy and matplotlib. Install with: pip install -e '.[visualization]'")
+    
+    from .clusters import find_clusters, classify_cluster
+    from collections import Counter
+    
+    all_particles = simulation.get_all_particles()
+    clusters = find_clusters(all_particles)
+    
+    # Classify and count sizes
+    chain_sizes = []
+    aggregate_sizes = []
+    
+    for cluster in clusters:
+        if len(cluster) == 1:
+            continue  # Skip singles
+        
+        cluster_type = classify_cluster(cluster, all_particles)
+        size = len(cluster)
+        
+        if cluster_type == 'Chain':
+            chain_sizes.append(size)
+        elif cluster_type == 'Aggregate':
+            aggregate_sizes.append(size)
+    
+    # Count occurrences
+    chain_size_counts = Counter(chain_sizes)
+    aggregate_size_counts = Counter(aggregate_sizes)
+    
+    # Create figure with two subplots
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+    
+    # Plot chain distribution
+    if chain_size_counts:
+        sizes = sorted(chain_size_counts.keys())
+        counts = [chain_size_counts[s] for s in sizes]
+        
+        ax1.bar(sizes, counts, color='#228B22', edgecolor='black', alpha=0.7)
+        ax1.set_xlabel('Chain Size (number of particles)', fontsize=12)
+        ax1.set_ylabel('Number of Chains', fontsize=12)
+        ax1.set_title(f'Chain Size Distribution\n(Total: {len(chain_sizes)} chains)', fontsize=14)
+        ax1.grid(axis='y', alpha=0.3)
+        ax1.set_xticks(sizes)
+        
+        # Add count labels on bars
+        for i, (size, count) in enumerate(zip(sizes, counts)):
+            ax1.text(size, count, str(count), ha='center', va='bottom', fontsize=10)
+    else:
+        ax1.text(0.5, 0.5, 'No chains found', ha='center', va='center', 
+                transform=ax1.transAxes, fontsize=14)
+        ax1.set_xlabel('Chain Size (number of particles)', fontsize=12)
+        ax1.set_ylabel('Number of Chains', fontsize=12)
+        ax1.set_title('Chain Size Distribution', fontsize=14)
+    
+    # Plot aggregate distribution
+    if aggregate_size_counts:
+        sizes = sorted(aggregate_size_counts.keys())
+        counts = [aggregate_size_counts[s] for s in sizes]
+        
+        ax2.bar(sizes, counts, color='#000000', edgecolor='black', alpha=0.7)
+        ax2.set_xlabel('Aggregate Size (number of particles)', fontsize=12)
+        ax2.set_ylabel('Number of Aggregates', fontsize=12)
+        ax2.set_title(f'Aggregate Size Distribution\n(Total: {len(aggregate_sizes)} aggregates)', fontsize=14)
+        ax2.grid(axis='y', alpha=0.3)
+        ax2.set_xticks(sizes)
+        
+        # Add count labels on bars
+        for i, (size, count) in enumerate(zip(sizes, counts)):
+            ax2.text(size, count, str(count), ha='center', va='bottom', fontsize=10)
+    else:
+        ax2.text(0.5, 0.5, 'No aggregates found', ha='center', va='center',
+                transform=ax2.transAxes, fontsize=14)
+        ax2.set_xlabel('Aggregate Size (number of particles)', fontsize=12)
+        ax2.set_ylabel('Number of Aggregates', fontsize=12)
+        ax2.set_title('Aggregate Size Distribution', fontsize=14)
+    
+    plt.suptitle(title, fontsize=16, fontweight='bold')
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        plt.close()
+    else:
+        plt.show()
 
 
 def create_cycle_snapshots(
