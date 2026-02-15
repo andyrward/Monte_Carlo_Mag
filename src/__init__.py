@@ -34,12 +34,14 @@ try:
         visualize_system_3d,
         create_cycle_snapshots,
         create_animation,
+        plot_cluster_size_distributions,
     )
     _HAS_VISUALIZATION = True
     __all__.extend([
         'visualize_system_3d',
         'create_cycle_snapshots',
         'create_animation',
+        'plot_cluster_size_distributions',
     ])
 except ImportError:
     _HAS_VISUALIZATION = False

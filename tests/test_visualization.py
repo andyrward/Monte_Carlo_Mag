@@ -585,3 +585,68 @@ def test_cluster_spacing_values():
     
     # Verify we have multiple distinct clusters (not all stacked)
     assert len(clusters) >= 5, f"Expected at least 5 clusters, got {len(clusters)}"
+
+
+@pytest.mark.skipif(not _HAS_VISUALIZATION, reason="Requires visualization dependencies")
+def test_plot_cluster_size_distributions(tmp_path):
+    """Test that cluster size distribution plots are created correctly."""
+    from src.simulation import Simulation
+    from src import plot_cluster_size_distributions
+    
+    params = create_test_params(N_A_sim=6, N_B_sim=6)
+    sim = Simulation(params)
+    
+    # Create some chains of different sizes
+    # Chain 1: size 2
+    sim.particles_a[0].add_link(0, sim.particles_b[0].particle_id, 1)
+    sim.particles_b[0].add_link(1, sim.particles_a[0].particle_id, 0)
+    
+    # Chain 2: size 3
+    sim.particles_a[1].add_link(0, sim.particles_b[1].particle_id, 1)
+    sim.particles_b[1].add_link(1, sim.particles_a[1].particle_id, 0)
+    sim.particles_b[1].add_link(0, sim.particles_a[2].particle_id, 1)
+    sim.particles_a[2].add_link(1, sim.particles_b[1].particle_id, 0)
+    
+    # Create an aggregate (non-chain structure)
+    sim.particles_a[3].add_link(0, sim.particles_b[2].particle_id, 1)
+    sim.particles_b[2].add_link(1, sim.particles_a[3].particle_id, 0)
+    sim.particles_a[3].add_link(2, sim.particles_b[3].particle_id, 2)
+    sim.particles_b[3].add_link(2, sim.particles_a[3].particle_id, 2)
+    
+    output_path = tmp_path / "test_distributions.png"
+    
+    # Should not raise errors
+    plot_cluster_size_distributions(
+        sim,
+        save_path=output_path,
+        title="Test Size Distributions"
+    )
+    
+    # Check file was created
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+@pytest.mark.skipif(not _HAS_VISUALIZATION, reason="Requires visualization dependencies")
+def test_plot_cluster_size_distributions_no_clusters(tmp_path):
+    """Test size distribution plots when there are no multi-particle clusters."""
+    from src.simulation import Simulation
+    from src import plot_cluster_size_distributions
+    
+    params = create_test_params(N_A_sim=3, N_B_sim=3)
+    sim = Simulation(params)
+    
+    # Don't create any links - all particles are singles
+    
+    output_path = tmp_path / "test_distributions_empty.png"
+    
+    # Should handle empty case gracefully
+    plot_cluster_size_distributions(
+        sim,
+        save_path=output_path,
+        title="Test Empty Distributions"
+    )
+    
+    # Check file was created
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
