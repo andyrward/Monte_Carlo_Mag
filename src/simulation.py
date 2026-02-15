@@ -80,6 +80,16 @@ class Simulation:
             'n_bound_a': [],
             'n_bound_b': [],
             'n_sandwich': [],
+            'n_particles_in_chains': [],
+            'n_particles_in_aggregates': [],
+            'n_chains_size_2': [],
+            'n_chains_size_3': [],
+            'n_chains_size_4': [],
+            'n_chains_size_5plus': [],
+            'n_aggregates_size_2': [],
+            'n_aggregates_size_3': [],
+            'n_aggregates_size_4': [],
+            'n_aggregates_size_5plus': [],
         }
     
     def is_field_on(self) -> bool:
@@ -436,3 +446,54 @@ class Simulation:
         self.history['n_bound_a'].append(n_bound_a)
         self.history['n_bound_b'].append(n_bound_b)
         self.history['n_sandwich'].append(n_sandwich)
+        
+        # Find all clusters
+        from .clusters import find_clusters, classify_cluster
+        clusters = find_clusters(self._all_particles)
+        
+        # Classify clusters and count particles
+        chain_sizes = []
+        aggregate_sizes = []
+        n_particles_in_chains = 0
+        n_particles_in_aggregates = 0
+        
+        for cluster in clusters:
+            cluster_size = len(cluster)
+            if cluster_size == 1:
+                continue  # Skip single particles
+            
+            cluster_type = classify_cluster(cluster, self._all_particles)
+            
+            if cluster_type == 'Chain':
+                chain_sizes.append(cluster_size)
+                n_particles_in_chains += cluster_size
+            else:  # Aggregate
+                aggregate_sizes.append(cluster_size)
+                n_particles_in_aggregates += cluster_size
+        
+        # Count chain sizes
+        from collections import Counter
+        chain_counter = Counter(chain_sizes)
+        n_chains_size_2 = chain_counter.get(2, 0)
+        n_chains_size_3 = chain_counter.get(3, 0)
+        n_chains_size_4 = chain_counter.get(4, 0)
+        n_chains_size_5plus = sum(count for size, count in chain_counter.items() if size >= 5)
+        
+        # Count aggregate sizes
+        aggregate_counter = Counter(aggregate_sizes)
+        n_aggregates_size_2 = aggregate_counter.get(2, 0)
+        n_aggregates_size_3 = aggregate_counter.get(3, 0)
+        n_aggregates_size_4 = aggregate_counter.get(4, 0)
+        n_aggregates_size_5plus = sum(count for size, count in aggregate_counter.items() if size >= 5)
+        
+        # Append to history
+        self.history['n_particles_in_chains'].append(n_particles_in_chains)
+        self.history['n_particles_in_aggregates'].append(n_particles_in_aggregates)
+        self.history['n_chains_size_2'].append(n_chains_size_2)
+        self.history['n_chains_size_3'].append(n_chains_size_3)
+        self.history['n_chains_size_4'].append(n_chains_size_4)
+        self.history['n_chains_size_5plus'].append(n_chains_size_5plus)
+        self.history['n_aggregates_size_2'].append(n_aggregates_size_2)
+        self.history['n_aggregates_size_3'].append(n_aggregates_size_3)
+        self.history['n_aggregates_size_4'].append(n_aggregates_size_4)
+        self.history['n_aggregates_size_5plus'].append(n_aggregates_size_5plus)
