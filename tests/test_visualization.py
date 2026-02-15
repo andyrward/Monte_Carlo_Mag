@@ -427,5 +427,7 @@ def test_clustered_layout_separation():
     center2 = np.mean(cluster2_positions, axis=0)
     
     # Clusters should be separated by at least cluster_spacing (8.0)
+    # Allow some variation due to random placement within regions (region_size=3.0)
+    # Minimum distance = cluster_spacing - region_size = 8.0 - 3.0 = 5.0
     distance = np.linalg.norm(center1 - center2)
-    assert distance >= 5.0  # Should be around 8.0, but allow some variation
+    assert distance >= 5.0  # Clusters on adjacent grid cells, accounting for region spread

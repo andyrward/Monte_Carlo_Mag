@@ -192,7 +192,7 @@ def generate_non_overlapping_positions_in_region(
     Args:
         n_particles: Number of particles to place
         center: Center of the region (3D array)
-        region_size: Size of cubic region (half-width)
+        region_size: Size of cubic region (full width, particles placed in [-region_size/2, +region_size/2] around center)
         particle_radius: Radius of each particle
         max_attempts: Maximum attempts to place each particle
         
@@ -286,6 +286,7 @@ def layout_particles_geometric(simulation: 'Simulation', particle_radius: float 
     n_clusters = len(clusters)
     
     # Calculate grid dimensions for clusters (3D grid)
+    # Add 1 to provide extra space and prevent edge clusters from being too close
     n_per_side = int(np.ceil(n_clusters ** (1/3))) + 1
     cluster_spacing = 8.0  # Space between cluster centers
     cluster_region_size = 3.0  # Size of region for each cluster
