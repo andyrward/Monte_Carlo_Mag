@@ -249,6 +249,98 @@ def generate_non_overlapping_positions_in_region(
     return np.array(positions)
 
 
+def layout_chain_vertical(
+    cluster: set[int],
+    all_particles_dict: dict[int, 'Particle'],
+    center: Any,  # np.ndarray
+    particle_radius: float
+) -> Any:  # np.ndarray
+    """
+    Position chain particles vertically along Z-axis.
+    
+    Chains are linear structures - this places them stacked vertically
+    with proper spacing.
+    
+    Args:
+        cluster: Set of particle IDs in the chain
+        all_particles_dict: Dictionary of all particles
+        center: Center position for the chain
+        particle_radius: Radius of particles
+        
+    Returns:
+        Array of positions for particles in the chain
+    """
+    if not HAS_DEPENDENCIES:
+        raise ImportError("Visualization requires numpy and matplotlib. Install with: pip install -e '.[visualization]'")
+    
+    from collections import deque
+    
+    cluster_list = list(cluster)
+    n_particles = len(cluster_list)
+    
+    if n_particles == 0:
+        return np.array([]).reshape(0, 3)
+    
+    # For a chain, find the endpoints (particles with only 1 link within the cluster)
+    endpoints = []
+    for particle_id in cluster_list:
+        particle = all_particles_dict[particle_id]
+        # Count links that connect to particles within this cluster
+        cluster_links = [link for link in particle.links.values() if link[0] in cluster]
+        if len(cluster_links) == 1:
+            endpoints.append(particle_id)
+    
+    # Order particles from one end to the other using BFS
+    if len(endpoints) >= 1:
+        start_id = endpoints[0]
+    else:
+        # Shouldn't happen for a chain, but fallback
+        start_id = cluster_list[0]
+    
+    # BFS to order particles
+    ordered_ids = []
+    visited = set()
+    queue = deque([start_id])
+    visited.add(start_id)
+    
+    while queue:
+        current_id = queue.popleft()
+        ordered_ids.append(current_id)
+        current_particle = all_particles_dict[current_id]
+        
+        for patch_id, link in current_particle.links.items():
+            other_id, other_patch = link
+            if other_id not in visited and other_id in cluster:
+                visited.add(other_id)
+                queue.append(other_id)
+    
+    # Any particles not visited (shouldn't happen)
+    for particle_id in cluster_list:
+        if particle_id not in ordered_ids:
+            ordered_ids.append(particle_id)
+    
+    # Place particles vertically along Z-axis
+    spacing = 2.5 * particle_radius  # Slightly more than touching
+    total_height = spacing * (n_particles - 1)
+    start_z = center[2] - total_height / 2  # Center the chain vertically
+    
+    # Create mapping from particle_id to position
+    position_map = {}
+    for i, particle_id in enumerate(ordered_ids):
+        position_map[particle_id] = np.array([
+            center[0],  # Same X (centered)
+            center[1],  # Same Y (centered)
+            start_z + i * spacing  # Stacked along Z
+        ])
+    
+    # Return positions in the same order as cluster_list (which equals cluster)
+    positions = np.zeros((n_particles, 3))
+    for i, particle_id in enumerate(cluster_list):
+        positions[i] = position_map[particle_id]
+    
+    return positions
+
+
 def layout_particles_geometric(simulation: 'Simulation', particle_radius: float = 0.3) -> Any:
     """
     Position particles with cluster-aware random layout.
@@ -288,7 +380,7 @@ def layout_particles_geometric(simulation: 'Simulation', particle_radius: float 
     # Calculate grid dimensions for clusters (3D grid)
     # Add 1 to provide extra space and prevent edge clusters from being too close
     n_per_side = int(np.ceil(n_clusters ** (1/3))) + 1
-    cluster_spacing = 8.0  # Space between cluster centers
+    cluster_spacing = 20.0  # Much more space between cluster centers
     cluster_region_size = 3.0  # Size of region for each cluster
     
     # Map particle_id to position
@@ -310,12 +402,27 @@ def layout_particles_geometric(simulation: 'Simulation', particle_radius: float 
         cluster_particle_ids = list(cluster)
         n_cluster_particles = len(cluster_particle_ids)
         
-        # Generate non-overlapping positions within cluster region
+        # Determine cluster type
+        if n_cluster_particles == 1:
+            cluster_type = 'Single'
+        else:
+            from .clusters import classify_cluster
+            cluster_type = classify_cluster(cluster, all_particles_dict)
+        
+        # Generate positions based on cluster type
         if n_cluster_particles == 1:
             # Single particle at cluster center
             cluster_positions = np.array([cluster_center])
+        elif cluster_type == 'Chain':
+            # Chains extend vertically along Z-axis
+            cluster_positions = layout_chain_vertical(
+                cluster=cluster,
+                all_particles_dict=all_particles_dict,
+                center=cluster_center,
+                particle_radius=particle_radius
+            )
         else:
-            # Multiple particles - place randomly in region around center
+            # Aggregates use random placement
             cluster_positions = generate_non_overlapping_positions_in_region(
                 n_particles=n_cluster_particles,
                 center=cluster_center,
@@ -534,9 +641,9 @@ def visualize_system_3d(
     
     # Define colors
     color_map = {
-        'Single': '#8B4513',  # Brown
-        'Chain': '#228B22',   # Green
-        'Aggregate': '#DC143C'  # Red
+        'Single': '#8B4513',  # Brown (keep as is)
+        'Chain': '#228B22',   # Green (keep as is)
+        'Aggregate': '#000000'  # Black (changed from red)
     }
     
     # Plot particles
